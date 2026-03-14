@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+:root {
+  --primary: #5c4033;
+  /* Dark Brown */
+  --primary-foreground: #ffffff;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: #E5E5E5;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
+  overflow: hidden;
+}
+
+/* Dark Theme Sophisticated Background */
+body.theme-dark {
+  background-color: #0c0a09 !important;
+  background-image:
+    radial-gradient(ellipse at 80% 20%, rgba(211, 84, 0, 0.12), transparent 40%),
+    radial-gradient(ellipse at 20% 80%, rgba(230, 126, 34, 0.08), transparent 40%) !important;
+  background-size: 100% 100%, 100% 100% !important;
+  background-attachment: fixed !important;
+}
+
+/* Light Theme Sophisticated Background */
+body.theme-light {
+  background-color: #f1f5f9 !important;
+  background-image:
+    radial-gradient(ellipse at 80% 20%, rgba(211, 84, 0, 0.06), transparent 40%),
+    radial-gradient(ellipse at 20% 80%, rgba(230, 126, 34, 0.04), transparent 40%) !important;
+  background-size: 100% 100%, 100% 100% !important;
+  background-attachment: fixed !important;
+  color: #0f172a;
+}
+
+/* Panels - Mantendo chocolate sempre na barra lateral e header */
+.bg-chocolate-panel {
+  background: radial-gradient(circle at top left, #8B3A0F 0%, #4a1c06 50%, #1a0900 100%) !important;
+  border-color: rgba(255, 255, 255, 0.05) !important;
+}
+
+/* Ensure text inside chocolate cards remains light in light mode */
+body.theme-light .bg-white\/5 .text-white,
+body.theme-light .bg-white\/10 .text-white,
+body.theme-light .bg-black\/20 .text-white,
+body.theme-light .bg-black\/40 .text-white,
+body.theme-light .bg-white\/5 .text-\[\#A8A29E\],
+body.theme-light .bg-white\/10 .text-\[\#A8A29E\],
+body.theme-light .bg-white\/5 h1,
+body.theme-light .bg-white\/10 h1,
+body.theme-light .bg-white\/5 h2,
+body.theme-light .bg-white\/10 h2,
+body.theme-light .bg-white\/5 h3,
+body.theme-light .bg-white\/10 h3 {
+  color: #ffffff !important;
+}
+
+body.theme-light .bg-white\/5 .text-\[\#A8A29E\],
+body.theme-light .bg-white\/10 .text-\[\#A8A29E\] {
+  color: #d1d5db !important;
+  /* Lighter gray for subtext on chocolate */
+}
+
+body.theme-light .bg-white\/5 {
+  background-color: #1c1917 !important;
+  /* Dark Chocolate Card Base */
+}
+
+body.theme-light .bg-white\/10 {
+  background-color: #2d2826 !important;
+  /* Lighter Chocolate */
+}
+
+body.theme-light .bg-black\/20 {
+  background-color: rgba(28, 25, 23, 0.95) !important;
+}
+
+body.theme-light .bg-black\/40 {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+body.theme-light .border-white\/10,
+body.theme-light .divide-white\/10 {
+  border-color: rgba(92, 64, 51, 0.35) !important;
+}
+
+body.theme-light .border-white\/20,
+body.theme-light .divide-white\/20 {
+  border-color: rgba(92, 64, 51, 0.55) !important;
+}
+
+body.theme-light .border-white\/5,
+body.theme-light .divide-white\/5 {
+  border-color: rgba(92, 64, 51, 0.2) !important;
+}
+
+body.theme-light .bg-guepardo-brown-dark\/40 {
+  background-color: rgba(255, 255, 255, 0.7) !important;
+}
+
+body.theme-light .bg-guepardo-brown-dark\/80 {
+  background-color: rgba(255, 255, 255, 0.9) !important;
+}
+
+body.theme-light .bg-guepardo-brown-dark\/90 {
+  background-color: rgba(255, 255, 255, 0.95) !important;
+}
+
+#root {
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Glassmorphism Map Controls (Portado do Lojista) */
+.glass-panel {
+  background: rgba(18, 18, 18, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+body.theme-light .glass-panel {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.map-control-button {
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #E5E5E5;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+}
+
+body.theme-light .map-control-button {
+  color: #1e293b;
+}
+
+.map-control-button:hover {
+  background: rgba(211, 84, 0, 0.2);
+  color: #D35400;
+  transform: scale(1.05);
+}
+
+.map-control-button:active {
+  transform: scale(0.95);
+}
+
+.map-control-button.active {
+  background: #D35400;
+  color: white;
+}
+
+/* Marker Animations */
+@keyframes marker-pulse {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(239, 68, 68, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
+
+@keyframes marker-pulse-blue {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0);
+  }
+
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.pulse-red {
+  animation: marker-pulse 2s infinite;
+}
+
+.pulse-blue {
+  animation: marker-pulse-blue 2s infinite;
+}
