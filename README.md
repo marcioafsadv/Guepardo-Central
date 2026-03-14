@@ -1,73 +1,56 @@
-# React + TypeScript + Vite
+# 🐆 GUEPARDO CENTRAL — Console de Liderança
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+![Guepardo Badge](https://img.shields.io/badge/Status-Operacional-orange?style=for-the-badge)
+![Tech Stack](https://img.shields.io/badge/Tecnologias-React%20%7C%20Supabase%20%7C%20Tailwind-blue?style=for-the-badge)
 
-Currently, two official plugins are available:
+O **Guepardo Central** é o hub estratégico de comando para a operação de entregas da Guepardo. Desenvolvido para oferecer máxima visibilidade tática e controle operacional em tempo real, o sistema centraliza a gestão de entregadores, lojistas e métricas de performance em uma interface premium e dinâmica.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🚀 Pilares do Sistema
 
-## React Compiler
+- **📍 Central Tática (Mapa em Tempo Real)**: Monitoramento ao vivo de entregadores e pedidos ativos utilizando Mapbox e Leaflet, com rotas inteligentes e telemetria de sinal.
+- **📊 Matriz de Produtividade**: Dashboard analítico com KPIs de volume financeiro, taxa de eficiência (98%+), repasses e volume de pedidos por categoria.
+- **🛵 Gestão de Guepardos**: Workflow completo de vistoria e aprovação de novos entregadores, verificação de documentos (CNH/CRLV) e status de frota.
+- **🏢 Gestão de Lojistas**: Controle de parceiros, status de funcionamento (Aberto/Fechado) e histórico de solicitações.
+- **💬 Comunicação Multilateral**: Chat integrado para resolução de exceções entre central, lojista e entregador.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🛠️ Stack Tecnológica
 
-## Expanding the ESLint configuration
+- **Frontend**: React 18 + Vite (HMR ultra-rápido)
+- **Estilização**: Tailwind CSS (Design System customizado com gradientes e glassmorphism)
+- **Backend/DB**: Supabase (PostgreSQL + Realtime Engine)
+- **Geolocalização**: Leaflet + Mapbox API
+- **Icons**: Lucide React
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 📦 Configuração e Instalação
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Pré-requisitos
+- Node.js (v18 ou superior)
+- Conta no Supabase
+- Token de Acesso Mapbox
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+### Ambiente de Desenvolvimento
+1. Clone o repositório:
+   ```bash
+   git clone https://github.com/marcioafsadv/Guepardo-Central.git
+   ```
+2. Instale as dependências:
+   ```bash
+   npm install
+   ```
+3. Configure as variáveis de ambiente (`.env`):
+   ```env
+   VITE_SUPABASE_URL=seu_url_supabase
+   VITE_SUPABASE_ANON_KEY=sua_chave_anonima
+   VITE_MAPBOX_TOKEN=seu_token_mapbox
+   ```
+4. Inicie o servidor:
+   ```bash
+   npm run dev
+   ```
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+## 🔐 Segurança
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Este repositório passou por um processo rigoroso de limpeza de segurança, garantindo que nenhum segredo ou credencial sensível esteja presente no código ou no histórico de commits. Todas as operações utilizam variáveis de ambiente protegidas.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+---
+*Guepardo Delivery — Velocidade e Inteligência em cada entrega.*
