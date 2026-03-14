@@ -12,6 +12,7 @@ import {
     LayoutGrid,
     List as ListIcon,
     PauseCircle,
+    X,
     MapPin,
     Building2,
     Calendar,
@@ -200,14 +201,14 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                                 disabled={updating}
                                 className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl font-black text-red-500 text-sm transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
                             >
-                                <XCircleIcon className="w-4 h-4" /> Recusar Cadastro
+                                <AlertCircle className="w-4 h-4" /> Recusar Cadastro
                             </button>
                         )}
                         <button
                             onClick={onClose}
-                            className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-bold text-[#A8A29E] hover:text-white text-sm transition-all"
+                            className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-bold text-[#A8A29E] hover:text-white text-sm transition-all flex items-center justify-center gap-2"
                         >
-                            FECHAR
+                            <X className="w-4 h-4" /> FECHAR
                         </button>
                     </div>
                 </div>
@@ -290,11 +291,6 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
     );
 };
 
-const XCircleIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-        <circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>
-    </svg>
-);
 
 const MerchantManagement = () => {
     const [stores, setStores] = useState<StoreType[]>([]);
