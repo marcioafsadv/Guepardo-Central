@@ -5,133 +5,296 @@ import {
     Activity,
     Wallet,
     Power,
-    TrendingDown,
     ShieldCheck,
     FileText,
     Image as ImageIcon,
     Info,
-    X,
     LayoutGrid,
     List as ListIcon,
-    PauseCircle
+    PauseCircle,
+    MapPin,
+    Building2,
+    Calendar,
+    Phone,
+    CheckCircle2,
+    AlertCircle
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Store as StoreType, Delivery } from '../types';
 import { cn } from '../lib/utils';
+import { format } from 'date-fns';
 
-interface FunnelStats {
-    pending: number;
-    accepted: number;
-    inTransit: number;
-    delivered: number;
-    canceled: number;
+const formatAddress = (address: any) => {
+    if (!address) return 'N/A';
+    if (typeof address === 'string') return address;
+    
+    const parts = [];
+    if (address.street) parts.push(address.street);
+    if (address.number) parts.push(address.number);
+    if (address.district) parts.push(address.district);
+    if (address.city) {
+        let cityState = address.city;
+        if (address.state) cityState += ` - ${address.state}`;
+        parts.push(cityState);
+    }
+    
+    return parts.length > 0 ? parts.join(', ') : 'Endereço incompleto';
+};
+
+interface MerchantStats {
+    completed: number;
+    cancelled: number;
+    active: number;
+    revenue: number;
 }
 
-interface OnboardingReviewModalProps {
+interface MerchantDetailsModalProps {
     store: StoreType;
+    stats: MerchantStats;
     onClose: () => void;
-    onUpdate: (status: 'approved' | 'rejected', notes?: string) => Promise<void>;
+    onOnboardingUpdate: (status: 'approved' | 'rejected', notes?: string) => Promise<void>;
+    onStatusUpdate: (isActive: boolean) => Promise<void>;
+    onPauseUpdate: (status: string | undefined) => Promise<void>;
 }
 
-const OnboardingReviewModal = ({ store, onClose, onUpdate }: OnboardingReviewModalProps) => {
+const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onStatusUpdate, onPauseUpdate }: MerchantDetailsModalProps) => {
     const [notes, setNotes] = useState(store.onboarding_notes || '');
-    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [updating, setUpdating] = useState(false);
 
-    const handleAction = async (status: 'approved' | 'rejected') => {
-        setIsSubmitting(true);
-        await onUpdate(status, notes);
-        setIsSubmitting(false);
-        onClose();
+    const handleOnboarding = async (status: 'approved' | 'rejected') => {
+        setUpdating(true);
+        await onOnboardingUpdate(status, notes);
+        setUpdating(false);
     };
 
     const docs = [
-        { label: 'Documento de Identidade', url: store.document_url, icon: FileText },
-        { label: 'Contrato Assinado', url: store.contract_url, icon: ShieldCheck },
-        { label: 'Foto do Estabelecimento', url: store.location_photo_url, icon: ImageIcon },
+        { label: 'Documento ID / CNPJ', url: store.document_url, icon: FileText },
+        { label: 'Contrato Social', url: store.contract_url, icon: ShieldCheck },
+        { label: 'Fachada da Loja', url: store.location_photo_url, icon: ImageIcon },
     ];
 
+    const isOpen = ['open', 'aberta', 'online'].includes(store.status?.toLowerCase() || '') || !store.status;
+    const isPaused = ['paused', 'pausado', 'pausada'].includes(store.status?.toLowerCase() || '');
+
     return (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
-            <div className="bg-guepardo-brown-dark border border-white/10 w-full max-w-4xl rounded-[2.5rem] overflow-hidden shadow-2xl flex flex-col max-h-[90vh]">
-                <div className="p-8 border-b border-white/10 flex items-center justify-between bg-black/20">
-                    <div className="flex items-center gap-4">
-                        <div className="p-3 bg-guepardo-orange/10 text-guepardo-orange rounded-2xl border border-guepardo-orange/20">
-                            <ShieldCheck className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h2 className="text-2xl font-black text-white tracking-tight">Onboarding: {store.fantasy_name || store.company_name}</h2>
-                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest mt-0.5">Revisão de documentos e conformidade</p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+            <div className="bg-guepardo-brown-dark/95 border border-white/10 w-full max-w-5xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col md:flex-row h-[85vh]">
+                
+                {/* Left Panel: Merchant Summary */}
+                <div className="md:w-1/3 bg-black/30 border-r border-white/10 p-8 flex flex-col items-center text-center overflow-y-auto custom-scrollbar">
+                    <div className="relative group mb-6">
+                        <div className="absolute -inset-1 bg-brand-gradient rounded-3xl blur opacity-30 group-hover:opacity-60 transition duration-1000"></div>
+                        <div className="w-32 h-32 rounded-3xl bg-guepardo-brown-light border-2 border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
+                            <Store className="w-16 h-16 text-guepardo-orange/50" />
                         </div>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-white/5 rounded-full text-[#A8A29E] transition-all">
-                        <X className="w-6 h-6" />
-                    </button>
-                </div>
+                    
+                    <h3 className="text-2xl font-black text-white tracking-tight mb-2 leading-tight">
+                        {store.fantasy_name || store.company_name}
+                    </h3>
 
-                <div className="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {docs.map((doc, idx) => (
-                            <div key={idx} className="space-y-3">
-                                <span className="text-[10px] font-black text-[#A8A29E] uppercase tracking-[0.2em] flex items-center gap-2">
-                                    <doc.icon className="w-3 h-3" /> {doc.label}
-                                </span>
-                                <div className="aspect-[4/3] bg-black/40 rounded-3xl border border-white/5 overflow-hidden relative group">
-                                    {doc.url ? (
-                                        <>
-                                            <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-all group-hover:scale-110" />
-                                            <a 
-                                                href={doc.url} 
-                                                target="_blank" 
-                                                rel="noopener noreferrer"
-                                                className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all"
-                                            >
-                                                <span className="px-4 py-2 bg-white/10 backdrop-blur-md rounded-xl text-xs font-black text-white border border-white/20">Visualizar</span>
-                                            </a>
-                                        </>
-                                    ) : (
-                                        <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-black text-[#57534E] gap-2">
-                                            <Info className="w-6 h-6 opacity-20" />
-                                            NÃO ANEXADO
-                                        </div>
-                                    )}
+                    <div className="flex flex-wrap justify-center gap-2 mb-6">
+                        <span className={cn("px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-widest shadow-sm",
+                            store.onboarding_status === 'approved' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' :
+                            store.onboarding_status === 'pending' ? 'bg-amber-500/20 text-amber-500 border-amber-500/30' :
+                            'bg-red-500/20 text-red-500 border-red-500/30'
+                        )}>
+                            {store.onboarding_status === 'approved' ? 'ONBOARDING OK' :
+                             store.onboarding_status === 'pending' ? 'AGUARDANDO APROVAÇÃO' : 'REJEITADO'}
+                        </span>
+                        <span className={cn("px-3 py-1 rounded-full text-[9px] font-black border uppercase tracking-widest shadow-sm",
+                            isOpen ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                            isPaused ? "bg-amber-500/20 text-amber-500 border-amber-500/30" :
+                            "bg-red-500/20 text-red-400 border-red-500/30"
+                        )}>
+                            {isPaused ? 'PAUSADO' : isOpen ? 'ABERTO' : 'FECHADO'}
+                        </span>
+                    </div>
+
+                    <div className="w-full space-y-3 text-left">
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4">
+                            <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 shrink-0">
+                                <Building2 className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-black text-blue-400/70 uppercase tracking-widest leading-none mb-1">Documento</p>
+                                <p className="text-white text-sm font-bold truncate">{store.cnpj || store.document || 'N/A'}</p>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4">
+                            <div className="p-2 bg-guepardo-orange/10 text-guepardo-orange rounded-xl border border-guepardo-orange/20 shrink-0">
+                                <Phone className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-black text-guepardo-orange/70 uppercase tracking-widest leading-none mb-1">Contato</p>
+                                <p className="text-white text-sm font-bold truncate">{store.phone || 'N/A'}</p>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex items-center gap-4">
+                            <div className="p-2 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20 shrink-0">
+                                <MapPin className="w-4 h-4" />
+                            </div>
+                            <div className="min-w-0">
+                                <p className="text-[10px] font-black text-purple-400/70 uppercase tracking-widest leading-none mb-1">Localização</p>
+                                <p className="text-white text-[10px] font-bold leading-relaxed">{formatAddress(store.address)}</p>
+                            </div>
+                        </div>
+                        {store.created_at && (
+                            <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex items-center gap-4">
+                                <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0">
+                                    <Calendar className="w-4 h-4" />
+                                </div>
+                                <div className="min-w-0">
+                                    <p className="text-[10px] font-black text-emerald-400/70 uppercase tracking-widest leading-none mb-1">PARCEIRO DESDE</p>
+                                    <p className="text-white text-sm font-bold">{format(new Date(store.created_at), 'dd/MM/yyyy')}</p>
                                 </div>
                             </div>
-                        ))}
+                        )}
                     </div>
 
-                    <div className="bg-black/20 p-6 rounded-3xl border border-white/5 space-y-4">
-                        <span className="text-[10px] font-black text-[#A8A29E] uppercase tracking-widest flex items-center gap-2">
-                            <Info className="w-3 h-3" /> Notas da Central (Motivo de rejeição ou observações)
-                        </span>
+                    <div className="w-full mt-6 grid grid-cols-2 gap-3">
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                            <span className="text-xl font-black text-emerald-400">{stats.completed}</span>
+                            <span className="text-[8px] font-black text-emerald-500/50 uppercase tracking-widest mt-1">Feitos</span>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                            <span className="text-xl font-black text-red-500">{stats.cancelled}</span>
+                            <span className="text-[8px] font-black text-red-500/50 uppercase tracking-widest mt-1">Canc.</span>
+                        </div>
+                    </div>
+
+                    <div className="mt-auto pt-8 w-full space-y-3">
+                        {store.onboarding_status !== 'approved' ? (
+                            <button
+                                onClick={() => handleOnboarding('approved')}
+                                disabled={updating}
+                                className="w-full py-3 bg-brand-gradient rounded-xl font-black text-white text-sm shadow-glow hover:scale-[1.02] transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+                            >
+                                <CheckCircle2 className="w-4 h-4" /> Aprovar Lojista
+                            </button>
+                        ) : (
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => onPauseUpdate(store.status)}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 uppercase tracking-widest border",
+                                        isPaused ? "bg-amber-500/20 text-amber-500 border-amber-500/40 shadow-glow" : "bg-white/5 text-[#A8A29E] border-white/10"
+                                    )}
+                                >
+                                    <PauseCircle className="w-4 h-4" /> {isPaused ? 'Retomar' : 'Pausar'}
+                                </button>
+                                <button
+                                    onClick={() => onStatusUpdate(store.is_active ?? true)}
+                                    className={cn(
+                                        "flex-1 py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 uppercase tracking-widest border",
+                                        (store.is_active ?? true) ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/40" : "bg-red-500/20 text-red-500 border-red-500/40"
+                                    )}
+                                >
+                                    <Power className="w-4 h-4" /> {(store.is_active ?? true) ? 'Desativar' : 'Ativar'}
+                                </button>
+                            </div>
+                        )}
+                        {store.onboarding_status === 'pending' && (
+                            <button
+                                onClick={() => handleOnboarding('rejected')}
+                                disabled={updating}
+                                className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 rounded-xl font-black text-red-500 text-sm transition-all flex items-center justify-center gap-2 uppercase tracking-widest"
+                            >
+                                <XCircleIcon className="w-4 h-4" /> Recusar Cadastro
+                            </button>
+                        )}
+                        <button
+                            onClick={onClose}
+                            className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl font-bold text-[#A8A29E] hover:text-white text-sm transition-all"
+                        >
+                            FECHAR
+                        </button>
+                    </div>
+                </div>
+
+                {/* Right Panel: Detailed Vistoria */}
+                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-10">
+                    <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-4">
+                        <ShieldCheck className="text-guepardo-orange w-8 h-8" />
+                        Vistoria Cadastral
+                    </h2>
+
+                    {/* Store Info */}
+                    <section className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-500/10 rounded-xl flex items-center justify-center text-blue-400 border border-blue-500/20 shadow-sm">
+                                <Building2 className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-xs font-black text-blue-400/70 uppercase tracking-[0.2em] leading-none">Dados Empresariais</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
+                                <p className="text-[10px] font-bold text-[#57534E] uppercase">Razão Social</p>
+                                <p className="text-white font-bold">{store.company_name || 'N/A'}</p>
+                            </div>
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
+                                <p className="text-[10px] font-bold text-[#57534E] uppercase">Nome Fantasia</p>
+                                <p className="text-white font-bold">{store.fantasy_name || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Documents Grid */}
+                    <section className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-purple-500/10 rounded-xl flex items-center justify-center text-purple-400 border border-purple-500/20 shadow-sm">
+                                <FileText className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-xs font-black text-purple-400/70 uppercase tracking-[0.2em] leading-none">Documentação Fotográfica</h4>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
+                            {docs.map((doc, i) => (
+                                <div key={i} className="space-y-2 group cursor-pointer transition-all duration-500 hover:scale-105">
+                                    <div className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover:border-guepardo-orange/50">
+                                        {doc.url ? (
+                                            <>
+                                                <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                                                    <span className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-lg text-[8px] font-black text-white border border-white/20 uppercase tracking-widest">Ver Original</span>
+                                                </div>
+                                            </>
+                                        ) : (
+                                            <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-bold text-[#57534E] gap-2">
+                                                <AlertCircle className="w-5 h-5 opacity-20" />
+                                                NÃO ANEXADO
+                                            </div>
+                                        )}
+                                    </div>
+                                    <p className="text-[10px] font-black text-center text-[#A8A29E] tracking-widest uppercase">{doc.label}</p>
+                                </div>
+                            ))}
+                        </div>
+                    </section>
+
+                    {/* Notes */}
+                    <section className="bg-black/20 p-8 rounded-[2rem] border border-white/5 space-y-4">
+                        <div className="flex items-center gap-3 mb-2">
+                            <Info className="w-4 h-4 text-guepardo-orange" />
+                            <h4 className="text-[10px] font-black text-[#A8A29E] uppercase tracking-widest leading-none">Notas Internas / Motivo de Rejeição</h4>
+                        </div>
                         <textarea
                             value={notes}
                             onChange={(e) => setNotes(e.target.value)}
-                            placeholder="Descreva observações ou motivos caso precise rejeitar o cadastro..."
-                            className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-guepardo-orange/50 transition-all resize-none"
+                            placeholder="Descreva observações sobre os documentos ou motivos para rejeição..."
+                            className="w-full h-32 bg-black/40 border border-white/10 rounded-2xl p-4 text-sm text-white focus:outline-none focus:border-guepardo-orange/50 transition-all resize-none font-medium placeholder:text-[#57534E]"
                         />
-                    </div>
-                </div>
-
-                <div className="p-8 border-t border-white/10 bg-black/20 flex items-center justify-end gap-4">
-                    <button
-                        onClick={() => handleAction('rejected')}
-                        disabled={isSubmitting}
-                        className="px-8 py-4 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-50"
-                    >
-                        Rejeitar Cadastro
-                    </button>
-                    <button
-                        onClick={() => handleAction('approved')}
-                        disabled={isSubmitting}
-                        className="px-8 py-4 bg-brand-gradient text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-glow hover:scale-[1.02] transition-all disabled:opacity-50"
-                    >
-                        Aprovar Lojista
-                    </button>
+                    </section>
                 </div>
             </div>
         </div>
     );
 };
+
+const XCircleIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+        <circle cx="12" cy="12" r="10"/><path d="m15 9-6 6"/><path d="m9 9 6 6"/>
+    </svg>
+);
 
 const MerchantManagement = () => {
     const [stores, setStores] = useState<StoreType[]>([]);
@@ -169,7 +332,7 @@ const MerchantManagement = () => {
     const fetchData = async () => {
         try {
             const [storesRes, deliveriesRes] = await Promise.all([
-                supabase.from('stores').select('*'),
+                supabase.from('stores').select('*').order('created_at', { ascending: false }),
                 supabase.from('deliveries').select('id, status, store_id, created_at')
             ]);
 
@@ -193,7 +356,6 @@ const MerchantManagement = () => {
                 .eq('id', id);
 
             if (error) throw error;
-            setStores(prev => prev.map(s => s.id === id ? { ...s, is_active: !currentStatus } : s));
         } catch (err) {
             console.error('Error toggling active status:', err);
         }
@@ -201,27 +363,26 @@ const MerchantManagement = () => {
 
     const togglePause = async (id: string, currentStatus: string | undefined) => {
         try {
-            const newStatus = currentStatus === 'paused' ? 'open' : 'paused';
+            const isCurrentlyPaused = ['paused', 'pausado', 'pausada'].includes(currentStatus?.toLowerCase() || '');
+            const newStatus = isCurrentlyPaused ? 'aberta' : 'pausada';
             const { error } = await supabase
                 .from('stores')
                 .update({ status: newStatus })
                 .eq('id', id);
 
             if (error) throw error;
-            setStores(prev => prev.map(s => s.id === id ? { ...s, status: newStatus } : s));
         } catch (err) {
             console.error('Error toggling pause status:', err);
         }
     };
 
-    const getStoreFunnel = (storeId: string): FunnelStats => {
+    const getMerchantStats = (storeId: string): MerchantStats => {
         const storeDeliveries = deliveries.filter(d => d.store_id === storeId);
         return {
-            pending: storeDeliveries.filter(d => d.status === 'pending').length,
-            accepted: storeDeliveries.filter(d => d.status === 'accepted').length,
-            inTransit: storeDeliveries.filter(d => d.status === 'in_transit').length,
-            delivered: storeDeliveries.filter(d => d.status === 'delivered' || d.status === 'completed').length,
-            canceled: storeDeliveries.filter(d => d.status === 'canceled' || d.status === 'cancelled').length,
+            completed: storeDeliveries.filter(d => ['delivered', 'completed'].includes(d.status?.toLowerCase())).length,
+            cancelled: storeDeliveries.filter(d => ['canceled', 'cancelled', 'rejected'].includes(d.status?.toLowerCase())).length,
+            active: storeDeliveries.filter(d => ['picked_up', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'pending', 'accepted'].includes(d.status?.toLowerCase())).length,
+            revenue: 0 // Could be added if storage has it
         };
     };
 
@@ -246,7 +407,9 @@ const MerchantManagement = () => {
 
             if (error) throw error;
             
-            setStores(prev => prev.map(s => s.id === storeId ? { ...s, ...updates } : s));
+            if (selectedStore?.id === storeId) {
+                setSelectedStore(prev => prev ? { ...prev, ...updates } : null);
+            }
         } catch (err) {
             console.error('Error updating onboarding:', err);
         }
@@ -257,23 +420,29 @@ const MerchantManagement = () => {
             (store.company_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
             (store.document?.toLowerCase() || '').includes(searchTerm.toLowerCase());
 
-        const matchesStatus = statusFilter === 'all' || store.status === statusFilter || (statusFilter === 'open' && !store.status);
+        const s = store.status?.toLowerCase() || '';
+        const isOpen = ['open', 'aberta', 'online'].includes(s) || !s;
+        const isPaused = ['paused', 'pausado', 'pausada'].includes(s);
+        const isClosed = !isOpen && !isPaused;
+
+        let matchesStatus = statusFilter === 'all';
+        if (statusFilter === 'open') matchesStatus = isOpen;
+        if (statusFilter === 'paused') matchesStatus = isPaused;
+        if (statusFilter === 'closed') matchesStatus = isClosed;
         
         const matchesOnboarding = onboardingFilter === 'all' || store.onboarding_status === onboardingFilter || (onboardingFilter === 'pending' && !store.onboarding_status);
 
         return matchesSearch && matchesStatus && matchesOnboarding;
     });
 
-    const totalFunnel = stores.reduce((acc, store) => {
-        const funnel = getStoreFunnel(store.id);
+    const totalStats = stores.reduce((acc, store) => {
+        const s = getMerchantStats(store.id);
         return {
-            pending: acc.pending + funnel.pending,
-            accepted: acc.accepted + funnel.accepted,
-            inTransit: acc.inTransit + funnel.inTransit,
-            delivered: acc.delivered + funnel.delivered,
-            canceled: acc.canceled + funnel.canceled,
+            completed: acc.completed + s.completed,
+            cancelled: acc.cancelled + s.cancelled,
+            active: acc.active + s.active,
         };
-    }, { pending: 0, accepted: 0, inTransit: 0, delivered: 0, canceled: 0 });
+    }, { completed: 0, cancelled: 0, active: 0 });
 
     const totalBalance = stores.reduce((acc, store) => acc + (store.balance || 0), 0);
 
@@ -281,51 +450,60 @@ const MerchantManagement = () => {
         <div className="space-y-8 animate-in fade-in duration-700">
             {/* Top Stats Header */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 hover:border-white/20 transition-all duration-500 shadow-2xl backdrop-blur-sm group relative overflow-hidden">
+                <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm group relative overflow-hidden">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-700"></div>
                     <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Loja Aberta / Fechada</span>
+                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Lojas Operando</span>
                         <div className="p-3 bg-orange-500/10 text-orange-400 rounded-2xl">
                             <Store className="w-5 h-5" />
                         </div>
                     </div>
-                    <span className="text-3xl font-black text-white">{stores.filter(s => s.status === 'open' || !s.status).length} <span className="text-sm font-medium text-[#A8A29E]">/ {stores.filter(s => s.status === 'closed' || s.status === 'paused').length}</span></span>
+                    <span className="text-3xl font-black text-white">
+                        {stores.filter(store => {
+                            const s = store.status?.toLowerCase() || '';
+                            return ['open', 'aberta', 'online'].includes(s) || !s;
+                        }).length} 
+                        <span className="text-sm font-medium text-[#A8A29E]">/ {stores.length}</span>
+                    </span>
                     <div className="mt-1 flex items-center gap-2">
-                        <span className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">{stores.length} Cadastrados</span>
+                        <span className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Total de Estabelecimentos</span>
                     </div>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 hover:border-white/20 transition-all duration-500 shadow-2xl backdrop-blur-sm group relative overflow-hidden">
+                <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm group relative overflow-hidden">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-700"></div>
                     <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Saldo Retido</span>
+                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Saldo em Carteira</span>
                         <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl">
                             <Wallet className="w-5 h-5" />
                         </div>
                     </div>
-                    <span className="text-3xl font-black text-white">R$ {totalBalance.toFixed(2)}</span>
+                    <span className="text-2xl font-black text-white">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                    <div className="mt-1 flex items-center gap-2">
+                        <span className="text-[10px] text-emerald-500/70 font-bold uppercase tracking-widest">Recargas Acumuladas</span>
+                    </div>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 hover:border-white/20 transition-all duration-500 shadow-2xl backdrop-blur-sm group relative overflow-hidden md:col-span-2">
+                <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem] hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm group relative overflow-hidden md:col-span-2">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-700"></div>
                     <div className="flex items-center justify-between mb-4">
-                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Funnel Global Master</span>
+                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Volume de Operação (Todos Lojistas)</span>
                         <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl">
                             <Activity className="w-5 h-5" />
                         </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                         <div className="flex flex-col">
-                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase">Produção</span>
-                            <span className="text-xl font-black text-white">{totalFunnel.pending}</span>
+                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase">Entregues</span>
+                            <span className="text-xl font-black text-emerald-400">{totalStats.completed}</span>
                         </div>
                         <div className="flex flex-col border-l border-white/10 pl-4">
-                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase">Aguardando</span>
-                            <span className="text-xl font-black text-white">{totalFunnel.accepted}</span>
+                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase">Em Andamento</span>
+                            <span className="text-xl font-black text-blue-400">{totalStats.active}</span>
                         </div>
                         <div className="flex flex-col border-l border-white/10 pl-4">
-                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase">Em Rota</span>
-                            <span className="text-xl font-black text-guepardo-orange">{totalFunnel.inTransit}</span>
+                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase">Cancelados</span>
+                            <span className="text-xl font-black text-red-500">{totalStats.cancelled}</span>
                         </div>
                     </div>
                 </div>
@@ -335,10 +513,10 @@ const MerchantManagement = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/5 p-6 rounded-[2rem] border border-white/10 backdrop-blur-md">
                 <div className="flex flex-col gap-1">
                     <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
-                        <Store className="text-guepardo-orange" />
+                        <Building2 className="text-guepardo-orange" />
                         Gestão de Lojistas
                     </h2>
-                    <p className="text-xs text-[#A8A29E] font-medium uppercase tracking-widest">Controle operacional e financeiro</p>
+                    <p className="text-[10px] text-[#A8A29E] font-black uppercase tracking-widest">Vistoria e Monitoramento de Estabelecimentos</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -355,22 +533,22 @@ const MerchantManagement = () => {
                     <select
                         value={statusFilter}
                         onChange={(e) => setStatusFilter(e.target.value)}
-                        className="bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-guepardo-orange/50 transition-all text-white"
+                        className="bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-guepardo-orange/50 transition-all text-white font-bold"
                     >
-                        <option value="all">Todos os Status</option>
-                        <option value="open">Abertos</option>
-                        <option value="closed">Fechados</option>
-                        <option value="paused">Pausados</option>
+                        <option value="all">SITUAÇÃO: TODOS</option>
+                        <option value="open">OPERANDO AGORA</option>
+                        <option value="closed">FECHADOS</option>
+                        <option value="paused">PAUSADOS</option>
                     </select>
                     <select
                         value={onboardingFilter}
                         onChange={(e) => setOnboardingFilter(e.target.value)}
-                        className="bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-guepardo-orange/50 transition-all text-white"
+                        className="bg-black/20 border border-white/10 rounded-xl px-4 py-2.5 text-sm outline-none focus:border-guepardo-orange/50 transition-all text-white font-bold"
                     >
-                        <option value="all">Filtro Onboarding: Todos</option>
-                        <option value="pending">Aguardando Avaliação</option>
-                        <option value="approved">Aprovados</option>
-                        <option value="rejected">Rejeitados</option>
+                        <option value="all">VISTORIA: TODAS</option>
+                        <option value="pending">AGUARDANDO APROVAÇÃO</option>
+                        <option value="approved">APROVADOS</option>
+                        <option value="rejected">REJEITADOS</option>
                     </select>
 
                     <div className="flex items-center gap-2 bg-black/20 p-1 rounded-xl border border-white/10">
@@ -401,49 +579,44 @@ const MerchantManagement = () => {
                     viewMode === 'grid' ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
                 )}>
                     {filteredStores.map(store => {
-                        const funnel = getStoreFunnel(store.id);
-                        const isOpen = store.status === 'open' || !store.status;
-                        const isPaused = store.status === 'paused';
+                        const s = getMerchantStats(store.id);
+                        const status = store.status?.toLowerCase() || '';
+                        const isOpen = ['open', 'aberta', 'online'].includes(status) || !status;
+                        const isPaused = ['paused', 'pausado', 'pausada'].includes(status);
 
                         return (
                             <div 
                                 key={store.id} 
                                 className={cn(
-                                    "bg-white/5 border border-white/10 rounded-[2rem] hover:bg-white/10 hover:border-white/20 transition-all duration-500 relative group overflow-hidden shadow-xl",
-                                    viewMode === 'list' ? "flex flex-row items-center p-6 gap-8" : "flex flex-col p-6 gap-6"
+                                    "bg-white/5 border border-white/10 rounded-[2.5rem] hover:bg-white/10 transition-all duration-500 relative group overflow-hidden shadow-xl",
+                                    viewMode === 'list' ? "flex flex-row items-center p-6 gap-8" : "flex flex-col p-8 gap-6"
                                 )}
                             >
                                 <div className={cn(
                                     "absolute left-0 w-1 h-full",
                                     viewMode === 'grid' && "top-0 w-full h-1",
-                                    isOpen ? "bg-green-500" : isPaused ? "bg-yellow-500" : "bg-red-500"
+                                    isOpen ? "bg-green-500 shadow-[0_0_15px_rgba(34,197,94,0.3)]" : isPaused ? "bg-amber-500" : "bg-red-500"
                                 )}></div>
 
                                 {/* Header / Identity */}
                                 <div className={cn("flex items-start justify-between gap-4", viewMode === 'list' ? "w-1/3 shrink-0" : "w-full")}>
                                     <div className="flex flex-col gap-1 min-w-0">
-                                        <h3 className="text-lg font-black text-white truncate" title={store.fantasy_name || store.company_name || 'Desconhecido'}>
-                                            {store.fantasy_name || store.company_name || 'Desconhecido'}
+                                        <h3 className="text-xl font-black text-white truncate leading-tight group-hover:text-guepardo-orange transition-colors">
+                                            {store.fantasy_name || store.company_name}
                                         </h3>
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <span className="text-[10px] font-bold text-[#A8A29E] tracking-wider uppercase">
-                                                {store.tipo_pessoa === 'PF' ? 'CPF' : 'CNPJ'}: {store.document || 'N/A'}
+                                        <div className="flex flex-wrap items-center gap-2 mt-1">
+                                            <span className="text-[10px] font-black text-[#57534E] tracking-widest uppercase">
+                                                {store.cnpj || store.document || 'SEM DOCUMENTO'}
                                             </span>
                                             <span className={cn(
-                                                "text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter w-fit",
-                                                (store.is_active ?? true) ? "bg-emerald-500/20 text-emerald-400" : "bg-stone-500/20 text-stone-400"
-                                            )}>
-                                                {(store.is_active ?? true) ? 'Cadastro Ativo' : 'Cadastro Inativo'}
-                                            </span>
-                                            <span className={cn(
-                                                "text-[9px] font-black px-2 py-0.5 rounded-full uppercase tracking-tighter w-fit border",
+                                                "text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border",
                                                 store.onboarding_status === 'approved' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
                                                 store.onboarding_status === 'rejected' ? "bg-red-500/10 text-red-400 border-red-500/20" :
                                                 "bg-amber-500/10 text-amber-500 border-amber-500/20"
                                             )}>
-                                                {store.onboarding_status === 'approved' ? 'Onboarding OK' :
-                                                 store.onboarding_status === 'rejected' ? 'Rejeitado' :
-                                                 'Aguardando'}
+                                                {store.onboarding_status === 'approved' ? 'VISTORIA OK' :
+                                                 store.onboarding_status === 'rejected' ? 'REPROVADO' :
+                                                 'PENDENTE'}
                                             </span>
                                         </div>
                                     </div>
@@ -451,183 +624,85 @@ const MerchantManagement = () => {
                                         <button
                                             onClick={() => setSelectedStore(store)}
                                             className={cn(
-                                                "shrink-0 p-2.5 rounded-xl transition-all shadow-inner border",
+                                                "shrink-0 p-3 rounded-2xl transition-all shadow-inner border hover:scale-110",
                                                 store.onboarding_status === 'approved' 
                                                     ? "bg-blue-500/10 text-blue-500 border-blue-500/20 hover:bg-blue-500/20" 
                                                     : "bg-amber-500/10 text-amber-500 border-amber-500/20 hover:bg-amber-500/20 shadow-glow"
                                             )}
-                                            title="Ver Onboarding"
+                                            title="Vistoriar Lojista"
                                         >
                                             <ShieldCheck className="w-5 h-5" />
-                                        </button>
-                                        <div className={cn(
-                                            "shrink-0 p-2.5 rounded-xl border flex items-center justify-center",
-                                            isOpen
-                                                ? "bg-green-500/10 text-green-500 border-green-500/20"
-                                                : isPaused
-                                                    ? "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-                                                    : "bg-red-500/10 text-red-500 border-red-500/20"
-                                        )}>
-                                            <div className={cn("w-2 h-2 rounded-full", isOpen ? "bg-green-500 animate-pulse" : isPaused ? "bg-yellow-500" : "bg-red-500")}></div>
-                                        </div>
-                                        <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                togglePause(store.id, store.status);
-                                            }}
-                                            className={cn(
-                                                "shrink-0 p-2.5 rounded-xl transition-all shadow-inner border",
-                                                isPaused
-                                                    ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/40 hover:bg-yellow-500/30 shadow-glow"
-                                                    : "bg-white/5 text-[#A8A29E] border-white/10 hover:bg-white/10 hover:text-white"
-                                            )}
-                                            title={isPaused ? "Retomar Operação" : "Pausar Estabelecimento"}
-                                        >
-                                            <PauseCircle className="w-5 h-5" />
                                         </button>
                                     </div>
                                 </div>
 
-                                {/* Middle Section (Only in list mode) - Financial & Funnel Summary */}
-                                {viewMode === 'list' && (
-                                    <div className="flex flex-1 items-center gap-12 border-x border-white/5 px-8">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-wider flex items-center gap-1.5 mb-1">
-                                                <Wallet className="w-3 h-3" /> Saldo
-                                            </span>
-                                            <span className="text-lg font-black text-white">
-                                                R$ {(store.balance || 0).toFixed(2)}
-                                            </span>
+                                {/* Stats Bar */}
+                                <div className={cn("flex-1", viewMode === 'list' ? "px-8 border-x border-white/5" : "")}>
+                                    <div className="grid grid-cols-3 gap-2">
+                                        <div className="flex flex-col items-center p-3 bg-white/5 rounded-2xl border border-white/5">
+                                            <span className="text-lg font-black text-emerald-400">{s.completed}</span>
+                                            <span className="text-[7px] font-black text-emerald-500/40 uppercase tracking-widest">Feitos</span>
                                         </div>
-                                        <div className="flex-1 grid grid-cols-3 gap-4">
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-lg font-black text-white">{funnel.pending}</span>
-                                                <span className="text-[8px] text-[#A8A29E] font-bold uppercase tracking-tighter">Produção</span>
-                                            </div>
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-lg font-black text-blue-400">{funnel.accepted}</span>
-                                                <span className="text-[8px] text-blue-400/80 font-bold uppercase tracking-tighter">Espera</span>
-                                            </div>
-                                            <div className="flex flex-col items-center">
-                                                <span className="text-lg font-black text-guepardo-orange">{funnel.inTransit}</span>
-                                                <span className="text-[8px] text-guepardo-orange/80 font-bold uppercase tracking-tighter">Rota</span>
-                                            </div>
+                                        <div className="flex flex-col items-center p-3 bg-white/5 rounded-2xl border border-white/5">
+                                            <span className="text-lg font-black text-blue-400">{s.active}</span>
+                                            <span className="text-[7px] font-black text-blue-400/40 uppercase tracking-widest">Rota</span>
+                                        </div>
+                                        <div className="flex flex-col items-center p-3 bg-white/5 rounded-2xl border border-white/5">
+                                            <span className="text-lg font-black text-red-500">{s.cancelled}</span>
+                                            <span className="text-[7px] font-black text-red-500/40 uppercase tracking-widest">Canc.</span>
                                         </div>
                                     </div>
-                                )}
+                                </div>
 
-                                {/* Financial Info (Only in grid mode) */}
-                                {viewMode === 'grid' && (
-                                    <div className="flex items-center justify-between p-4 bg-black/40 rounded-2xl border border-white/5">
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                                                <Wallet className="w-3 h-3" /> Saldo Recarga
-                                            </span>
-                                            <span className="text-xl font-black text-white mt-1">
-                                                R$ {(store.balance || 0).toFixed(2)}
+                                {/* Info & Actions */}
+                                <div className={cn("flex items-center gap-4", viewMode === 'list' ? "w-64 justify-end" : "justify-between mt-auto pt-4 border-t border-white/5")}>
+                                    <div className="flex flex-col">
+                                        <span className="text-[8px] font-black text-[#57534E] uppercase tracking-widest leading-none mb-1">Status Operacional</span>
+                                        <div className="flex items-center gap-2">
+                                            <div className={cn("w-2 h-2 rounded-full", isOpen ? "bg-green-500 animate-pulse" : isPaused ? "bg-amber-500" : "bg-red-500")}></div>
+                                            <span className={cn("text-[10px] font-black uppercase tracking-widest", 
+                                                isOpen ? "text-green-500" : isPaused ? "text-amber-500" : "text-red-500")}>
+                                                {isPaused ? "Pausado" : isOpen ? "Aberto" : "Fechado"}
                                             </span>
                                         </div>
-                                        <button className="px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold transition-all text-white shadow-inner">
-                                            Recarregar
-                                        </button>
                                     </div>
-                                )}
 
-                                {/* Funnel (Only in grid mode) */}
-                                {viewMode === 'grid' && (
-                                    <div className="space-y-3">
-                                        <span className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-wider flex items-center gap-1.5">
-                                            <Activity className="w-3 h-3" /> Status do Funil de Pedidos
-                                        </span>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            <div className="bg-black/20 p-3 rounded-xl border border-white/5 flex flex-col items-center justify-center text-center">
-                                                <span className="text-xl font-black text-white">{funnel.pending}</span>
-                                                <span className="text-[9px] text-[#A8A29E] font-bold uppercase tracking-tighter mt-1">Produção</span>
-                                            </div>
-                                            <div className="bg-blue-500/10 p-3 rounded-xl border border-blue-500/20 flex flex-col items-center justify-center text-center">
-                                                <span className="text-xl font-black text-blue-400">{funnel.accepted}</span>
-                                                <span className="text-[9px] text-blue-400/80 font-bold uppercase tracking-tighter mt-1">Aguardando</span>
-                                            </div>
-                                            <div className="bg-guepardo-orange/10 p-3 rounded-xl border border-guepardo-orange/20 flex flex-col items-center justify-center text-center">
-                                                <span className="text-xl font-black text-guepardo-orange">{funnel.inTransit}</span>
-                                                <span className="text-[9px] text-guepardo-orange/80 font-bold uppercase tracking-tighter mt-1">Em Rota</span>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-
-                                {/* Card Footer Actions (Only in list mode) */}
-                                {viewMode === 'list' && (
-                                    <div className="flex items-center gap-4 shrink-0">
-                                        <button className="px-6 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold transition-all text-white shadow-inner">
-                                            Recarregar
-                                        </button>
+                                    <div className="flex items-center gap-2">
                                         <button
-                                            onClick={(e) => {
-                                                e.stopPropagation();
-                                                togglePause(store.id, store.status);
-                                            }}
+                                            onClick={() => togglePause(store.id, store.status)}
                                             className={cn(
-                                                "shrink-0 p-3 rounded-xl transition-all shadow-inner border",
-                                                isPaused
-                                                    ? "bg-yellow-500/20 text-yellow-500 border-yellow-500/40 hover:bg-yellow-500/30 shadow-glow"
-                                                    : "bg-white/5 text-[#A8A29E] border-white/10 hover:bg-white/10 hover:text-white"
+                                                "p-3 rounded-xl transition-all border",
+                                                isPaused ? "bg-amber-500/20 text-amber-500 border-amber-500/30 shadow-glow" : "bg-white/5 text-[#A8A29E] border-white/10 hover:text-white"
                                             )}
-                                            title={isPaused ? "Retomar" : "Pausar"}
                                         >
                                             <PauseCircle className="w-5 h-5" />
                                         </button>
                                         <button
                                             onClick={() => toggleIsActive(store.id, store.is_active ?? true)}
                                             className={cn(
-                                                "shrink-0 p-3 rounded-xl transition-all shadow-inner border",
-                                                (store.is_active ?? true)
-                                                    ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20 hover:bg-emerald-500/20"
-                                                    : "bg-stone-500/10 text-stone-400 border-stone-500/20 hover:bg-stone-500/20"
+                                                "p-3 rounded-xl transition-all border",
+                                                (store.is_active ?? true) ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-stone-500/10 text-stone-400 border-stone-500/20"
                                             )}
                                         >
                                             <Power className="w-5 h-5" />
                                         </button>
                                     </div>
-                                )}
-
-                                {/* Cancel Rate (Only in grid mode) */}
-                                {viewMode === 'grid' && (
-                                    <div className="pt-4 border-t border-white/5 flex flex-col gap-2">
-                                        <div className="flex items-center justify-between">
-                                            <span className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-wider flex items-center gap-1">
-                                                <TrendingDown className="w-3 h-3" /> Taxa de Cancelamento
-                                            </span>
-                                            <span className={cn(
-                                                "text-xs font-black",
-                                                (store.cancel_rate || 0) > 10 ? "text-red-500" : "text-green-500"
-                                            )}>
-                                                {store.cancel_rate || 0}%
-                                            </span>
-                                        </div>
-                                        <div className="w-full h-1.5 bg-black/40 rounded-full overflow-hidden">
-                                            <div
-                                                className={cn(
-                                                    "h-full rounded-full transition-all duration-1000",
-                                                    (store.cancel_rate || 0) > 10 ? "bg-red-500" : "bg-green-500"
-                                                )}
-                                                style={{ width: `${Math.min(store.cancel_rate || 0, 100)}%` }}
-                                            ></div>
-                                        </div>
-                                    </div>
-                                )}
+                                </div>
                             </div>
                         );
                     })}
                 </div>
             )}
 
-            {/* Onboarding Review Modal */}
+            {/* Merchant Details Modal */}
             {selectedStore && (
-                <OnboardingReviewModal
+                <MerchantDetailsModal
                     store={selectedStore}
+                    stats={getMerchantStats(selectedStore.id)}
                     onClose={() => setSelectedStore(null)}
-                    onUpdate={(status, notes) => handleUpdateOnboarding(selectedStore.id, status, notes)}
+                    onOnboardingUpdate={(status, notes) => handleUpdateOnboarding(selectedStore.id, status, notes)}
+                    onStatusUpdate={(isActive) => toggleIsActive(selectedStore.id, isActive)}
+                    onPauseUpdate={(status) => togglePause(selectedStore.id, status)}
                 />
             )}
         </div>

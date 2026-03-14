@@ -17,6 +17,7 @@ import {
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
 import { cn } from '../lib/utils';
+import { format } from 'date-fns';
 
 interface DriverWithDetails extends Profile {
     addresses?: any;
@@ -25,6 +26,8 @@ interface DriverWithDetails extends Profile {
         completed: number;
         accepted: number;
         cancelled: number;
+        active: number;
+        rejected: number;
     };
 }
 
@@ -97,6 +100,36 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                                 <p className="text-[10px] font-black text-slate-400/70 uppercase tracking-widest leading-none mb-1">Documento (CPF)</p>
                                 <p className="text-white text-sm font-bold">{driver.cpf || 'N/A'}</p>
                             </div>
+                        </div>
+                        {driver.created_at && (
+                            <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex items-center gap-4">
+                                <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0">
+                                    <ShieldCheck className="w-4 h-4" />
+                                </div>
+                                <div>
+                                    <p className="text-[10px] font-black text-emerald-400/70 uppercase tracking-widest leading-none mb-1">MEMBRO DESDE</p>
+                                    <p className="text-white text-sm font-bold">{format(new Date(driver.created_at), 'dd/MM/yyyy')}</p>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+
+                    <div className="w-full mt-8 grid grid-cols-2 gap-3">
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                            <span className="text-xl font-black text-emerald-400">{driver.stats?.completed || 0}</span>
+                            <span className="text-[8px] font-black text-emerald-500/50 uppercase tracking-widest mt-1">Feitas</span>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                            <span className="text-xl font-black text-blue-400">{driver.stats?.accepted || 0}</span>
+                            <span className="text-[8px] font-black text-blue-500/50 uppercase tracking-widest mt-1">Aceitas</span>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                            <span className="text-xl font-black text-amber-400">{driver.stats?.active || 0}</span>
+                            <span className="text-[8px] font-black text-amber-500/50 uppercase tracking-widest mt-1">Em Rota</span>
+                        </div>
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 flex flex-col items-center justify-center text-center">
+                            <span className="text-xl font-black text-red-500">{driver.stats?.rejected || 0}</span>
+                            <span className="text-[8px] font-black text-red-500/50 uppercase tracking-widest mt-1">Rejeitadas</span>
                         </div>
                     </div>
 
@@ -236,15 +269,23 @@ const DriverManagement = () => {
     useEffect(() => {
         fetchDrivers();
 
-        const subscription = supabase
+        const profilesSub = supabase
             .channel('drivers-updates')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
                 fetchDrivers();
             })
             .subscribe();
 
+        const deliveriesSub = supabase
+            .channel('deliveries-stats-updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
+                fetchDrivers();
+            })
+            .subscribe();
+
         return () => {
-            supabase.removeChannel(subscription);
+            supabase.removeChannel(profilesSub);
+            supabase.removeChannel(deliveriesSub);
         };
     }, []);
 
@@ -272,11 +313,14 @@ const DriverManagement = () => {
             (deliveriesRaw || []).forEach(d => {
                 if (!d.driver_id) return;
                 if (!statsMap[d.driver_id]) {
-                    statsMap[d.driver_id] = { completed: 0, accepted: 0, cancelled: 0 };
+                    statsMap[d.driver_id] = { completed: 0, accepted: 0, cancelled: 0, active: 0, rejected: 0 };
                 }
-                if (d.status === 'delivered' || d.status === 'completed') statsMap[d.driver_id].completed++;
+                const status = d.status?.toLowerCase();
+                if (status === 'delivered' || status === 'completed') statsMap[d.driver_id].completed++;
                 if (d.accepted_at) statsMap[d.driver_id].accepted++;
-                if (d.status === 'cancelled') statsMap[d.driver_id].cancelled++;
+                if (status === 'cancelled') statsMap[d.driver_id].cancelled++;
+                if (status === 'rejected') statsMap[d.driver_id].rejected++;
+                if (['picked_up', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery'].includes(status)) statsMap[d.driver_id].active++;
             });
 
             const mappedDrivers = (profiles || []).map((d: any) => {
@@ -295,7 +339,7 @@ const DriverManagement = () => {
                     ...d,
                     vehicles: vehicle,
                     addresses: driverAddresses[0] || null,
-                    stats: statsMap[d.id] || { completed: 0, accepted: 0, cancelled: 0 }
+                    stats: statsMap[d.id] || { completed: 0, accepted: 0, cancelled: 0, active: 0, rejected: 0 }
                 };
             });
 
@@ -329,36 +373,34 @@ const DriverManagement = () => {
     const handleSelectDriver = async (driver: DriverWithDetails) => {
         setSelectedDriver(driver);
         try {
-            // Fetch additional details separately to avoid schema cache join issues
+            // Fetch additional details from 'addresses' table
             const { data: address } = await supabase
                 .from('addresses')
                 .select('*')
                 .eq('user_id', driver.id)
                 .maybeSingle();
 
-            // Synthesis logic
-            const synthesizedAddress = address || {
-                user_id: driver.id,
-                city: driver.work_city || 'N/A',
-                street: 'N/A',
-                district: 'N/A',
-                number: ''
-            };
-
+            // Fetch additional details from 'vehicles' table
             const { data: vehicle } = await supabase
                 .from('vehicles')
                 .select('*')
                 .eq('user_id', driver.id)
                 .maybeSingle();
 
-            // Fallback: If vehicle record is missing but we know files exist in storage (verified naming convention)
-            // We synthesize the missing document URLs for the UI to display
+            // Synthesis logic with fallbacks
+            const synthesizedAddress = address || {
+                user_id: driver.id,
+                city: driver.work_city || 'N/A',
+                street: 'N/A',
+                state: 'N/A',
+                number: ''
+            };
+
             const synthesizedVehicle = vehicle || {
                 user_id: driver.id,
-                model: driver.vehicle_model || (driver as any).metadata?.vehicle?.model || 'N/A',
-                color: driver.vehicle_color || (driver as any).metadata?.vehicle?.color || 'N/A',
-                plate: driver.vehicle_plate || (driver as any).metadata?.vehicle?.plate || 'N/A',
-                cnh_number: driver.cnh_number || (driver as any).metadata?.vehicle?.cnhNumber || 'N/A',
+                model: 'N/A',
+                plate: 'N/A',
+                cnh_number: 'N/A',
                 cnh_front_url: supabase.storage.from('courier-documents').getPublicUrl(`${driver.id}/cnh_front.jpg`).data.publicUrl,
                 cnh_back_url: supabase.storage.from('courier-documents').getPublicUrl(`${driver.id}/cnh_back.jpg`).data.publicUrl,
                 crlv_url: supabase.storage.from('courier-documents').getPublicUrl(`${driver.id}/crlv.jpg`).data.publicUrl,
@@ -467,9 +509,17 @@ const DriverManagement = () => {
                                 </div>
                                 <div className="flex flex-col min-w-0">
                                     <h3 className="font-black text-white text-lg truncate group-hover:text-guepardo-orange transition-colors leading-tight">{driver.full_name}</h3>
-                                    <div className="flex items-center gap-2 text-[10px] text-blue-400 font-black uppercase tracking-widest mt-1 bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20 self-start">
-                                        <MapPin className="w-2.5 h-2.5" />
-                                        {driver.work_city || 'S.P.'}
+                                    <div className="flex flex-wrap items-center gap-2 mt-1">
+                                        <div className="flex items-center gap-1.5 text-[9px] text-blue-400 font-black uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
+                                            <MapPin className="w-2.5 h-2.5" />
+                                            {driver.work_city || 'S.P.'}
+                                        </div>
+                                        {driver.created_at && (
+                                            <div className="flex items-center gap-1.5 text-[9px] text-emerald-400 font-black uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                                <ShieldCheck className="w-2.5 h-2.5" />
+                                                Ativo desde {format(new Date(driver.created_at), 'dd/MM/yyyy')}
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -496,18 +546,26 @@ const DriverManagement = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/5">
+                                <div className="grid grid-cols-5 gap-2 pt-4 border-t border-white/5">
                                     <div className="flex flex-col items-center p-2 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
-                                        <span className="text-[14px] font-black text-emerald-400">{driver.stats?.completed || 0}</span>
-                                        <span className="text-[8px] font-black text-emerald-500/50 uppercase tracking-tighter">Feltas</span>
+                                        <span className="text-[12px] font-black text-emerald-400">{driver.stats?.completed || 0}</span>
+                                        <span className="text-[7px] font-black text-emerald-500/50 uppercase tracking-tighter">Feitas</span>
                                     </div>
                                     <div className="flex flex-col items-center p-2 bg-blue-500/5 rounded-xl border border-blue-500/10">
-                                        <span className="text-[14px] font-black text-blue-400">{driver.stats?.accepted || 0}</span>
-                                        <span className="text-[8px] font-black text-blue-500/50 uppercase tracking-tighter">Aceitas</span>
+                                        <span className="text-[12px] font-black text-blue-400">{driver.stats?.accepted || 0}</span>
+                                        <span className="text-[7px] font-black text-blue-500/50 uppercase tracking-tighter">Aceitas</span>
+                                    </div>
+                                    <div className="flex flex-col items-center p-2 bg-amber-500/5 rounded-xl border border-amber-500/10">
+                                        <span className="text-[12px] font-black text-amber-400">{driver.stats?.active || 0}</span>
+                                        <span className="text-[7px] font-black text-amber-500/50 uppercase tracking-tighter">Em Rota</span>
                                     </div>
                                     <div className="flex flex-col items-center p-2 bg-red-500/5 rounded-xl border border-red-500/10">
-                                        <span className="text-[14px] font-black text-red-400">{driver.stats?.cancelled || 0}</span>
-                                        <span className="text-[8px] font-black text-red-500/50 uppercase tracking-tighter">Canc.</span>
+                                        <span className="text-[12px] font-black text-red-500">{driver.stats?.rejected || 0}</span>
+                                        <span className="text-[7px] font-black text-red-500/50 uppercase tracking-tighter">Rejeit.</span>
+                                    </div>
+                                    <div className="flex flex-col items-center p-2 bg-slate-500/5 rounded-xl border border-slate-500/10">
+                                        <span className="text-[12px] font-black text-slate-400">{driver.stats?.cancelled || 0}</span>
+                                        <span className="text-[7px] font-black text-slate-500/50 uppercase tracking-tighter">Canc.</span>
                                     </div>
                                 </div>
                             </div>
