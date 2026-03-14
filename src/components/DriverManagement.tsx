@@ -21,6 +21,11 @@ import { cn } from '../lib/utils';
 interface DriverWithDetails extends Profile {
     addresses?: any;
     vehicles?: any;
+    stats?: {
+        completed: number;
+        accepted: number;
+        cancelled: number;
+    };
 }
 
 interface DriverDetailsModalProps {
@@ -248,16 +253,31 @@ const DriverManagement = () => {
             const [
                 { data: profiles, error: profError },
                 { data: vehicles, error: vehError },
-                { data: addresses, error: addrError }
+                { data: addresses, error: addrError },
+                { data: deliveriesRaw, error: delError }
             ] = await Promise.all([
                 supabase.from('profiles').select('*').order('created_at', { ascending: false }),
                 supabase.from('vehicles').select('*'),
-                supabase.from('addresses').select('*')
+                supabase.from('addresses').select('*'),
+                supabase.from('deliveries').select('driver_id, status, accepted_at').not('driver_id', 'is', null)
             ]);
 
             if (profError) throw profError;
             if (vehError) console.error('Error fetching vehicles:', vehError);
             if (addrError) console.error('Error fetching addresses:', addrError);
+            if (delError) console.error('Error fetching delivery stats:', delError);
+
+            // Aggregate stats
+            const statsMap: Record<string, any> = {};
+            (deliveriesRaw || []).forEach(d => {
+                if (!d.driver_id) return;
+                if (!statsMap[d.driver_id]) {
+                    statsMap[d.driver_id] = { completed: 0, accepted: 0, cancelled: 0 };
+                }
+                if (d.status === 'delivered' || d.status === 'completed') statsMap[d.driver_id].completed++;
+                if (d.accepted_at) statsMap[d.driver_id].accepted++;
+                if (d.status === 'cancelled') statsMap[d.driver_id].cancelled++;
+            });
 
             const mappedDrivers = (profiles || []).map((d: any) => {
                 const driverVehicles = (vehicles || []).filter(v => v.user_id === d.id);
@@ -274,7 +294,8 @@ const DriverManagement = () => {
                 return {
                     ...d,
                     vehicles: vehicle,
-                    addresses: driverAddresses[0] || null
+                    addresses: driverAddresses[0] || null,
+                    stats: statsMap[d.id] || { completed: 0, accepted: 0, cancelled: 0 }
                 };
             });
 
@@ -453,29 +474,40 @@ const DriverManagement = () => {
                                 </div>
                             </div>
 
-                            {/* Info Grid */}
-                            <div className={cn("flex-1 min-w-0 grid grid-cols-2 gap-6", viewMode === 'list' ? "px-6 border-x border-white/5" : "mb-8")}>
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <div className="p-1.5 bg-amber-500/10 text-amber-500 rounded-lg border border-amber-500/20">
-                                            <BikeIcon className="w-3.5 h-3.5" />
-                                        </div>
-                                        <div className="flex flex-col">
-                                            <span className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest leading-none mb-1 text-[8px]">Modelo</span>
-                                            <span className="text-white font-black text-xs truncate max-w-[80px] leading-none">{driver.vehicles?.model || 'NÃO INF.'}</span>
+                            {/* Status and Stats Bar */}
+                            <div className={cn("flex-1 min-w-0 flex flex-col gap-6", viewMode === 'list' ? "px-6 border-x border-white/5" : "mb-8")}>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest leading-none mb-2 text-[8px]">Placa / CPF</span>
+                                        <div className="flex flex-col gap-0.5">
+                                            <span className="text-white font-black text-xs">{driver.vehicles?.plate || 'S/ PLACA'}</span>
+                                            <span className="text-[#A8A29E] font-medium text-[10px]">{driver.cpf || 'S/ CPF'}</span>
                                         </div>
                                     </div>
-                                </div>
-                                <div className="space-y-2">
                                     <div className="flex flex-col">
-                                        <span className="text-[10px] font-black text-[#57534E] uppercase tracking-widest leading-none mb-2 text-[8px]">Status Perfil</span>
+                                        <span className="text-[10px] font-black text-[#57534E] uppercase tracking-widest leading-none mb-2 text-[8px]">Situação</span>
                                         <div className={cn("px-2.5 py-1 rounded-lg text-[9px] font-black border uppercase tracking-widest inline-block text-center",
-                                            driver.status === 'approved' || driver.status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-[0_0_10px_rgba(16,185,129,0.1)]' :
+                                            driver.status === 'approved' || driver.status === 'active' ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' :
                                                 driver.status === 'pending' ? 'bg-amber-500/20 text-amber-500 border-amber-500/30' :
                                                     'bg-red-500/20 text-red-500 border-red-500/30'
                                         )}>
-                                            {driver.status === 'pending' ? 'PENDENTE' : driver.status || 'OFF'}
+                                            {driver.status === 'pending' ? 'PENDENTE' : driver.status?.toUpperCase() || 'OFF'}
                                         </div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/5">
+                                    <div className="flex flex-col items-center p-2 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
+                                        <span className="text-[14px] font-black text-emerald-400">{driver.stats?.completed || 0}</span>
+                                        <span className="text-[8px] font-black text-emerald-500/50 uppercase tracking-tighter">Feltas</span>
+                                    </div>
+                                    <div className="flex flex-col items-center p-2 bg-blue-500/5 rounded-xl border border-blue-500/10">
+                                        <span className="text-[14px] font-black text-blue-400">{driver.stats?.accepted || 0}</span>
+                                        <span className="text-[8px] font-black text-blue-500/50 uppercase tracking-tighter">Aceitas</span>
+                                    </div>
+                                    <div className="flex flex-col items-center p-2 bg-red-500/5 rounded-xl border border-red-500/10">
+                                        <span className="text-[14px] font-black text-red-400">{driver.stats?.cancelled || 0}</span>
+                                        <span className="text-[8px] font-black text-red-500/50 uppercase tracking-tighter">Canc.</span>
                                     </div>
                                 </div>
                             </div>
