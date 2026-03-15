@@ -1,0 +1,16 @@
+--- Robust Column Probe ---
+
+Table: vehicles
+  [Found] user_id
+  [Found] model
+  [Found] plate
+  [Found] cnh_number
+
+Table: addresses
+  [Found] user_id
+  [Found] street
+  [Found] city
+  [Found] state
+  [Found] number
+
+Table: profiles

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     Search,
     MapPin,
@@ -221,14 +221,14 @@ const OrderDetailsModal = ({ delivery, onClose, onShowTracking }: OrderDetailsMo
             description: 'Guepardo chegou no local', 
             status: ['arrived_at_pickup', 'picked_up', 'in_transit', 'arrived_at_delivery', 'completed'].includes(delivery.status) ? 'completed' : 'pending', 
             statusLabel: ['arrived_at_pickup', 'picked_up', 'in_transit', 'arrived_at_delivery', 'completed'].includes(delivery.status) ? 'CONCLUÍDO' : 'AGUARDANDO',
-            time: (delivery as any).arrived_at_pickup_time || (delivery.created_at ? new Date(new Date(delivery.created_at).getTime() + 5 * 60000).toISOString() : null)
+            time: delivery.arrived_at_pickup_time || (delivery.created_at ? new Date(new Date(delivery.created_at).getTime() + 5 * 60000).toISOString() : null)
         },
         { 
             label: 'Pronto p/ Coleta', 
             description: 'Lojista marcou como pronto', 
             status: ['picked_up', 'in_transit', 'arrived_at_delivery', 'completed'].includes(delivery.status) ? 'completed' : 'pending', 
             statusLabel: ['picked_up', 'in_transit', 'arrived_at_delivery', 'completed'].includes(delivery.status) ? 'CONCLUÍDO' : 'AGUARDANDO',
-            time: (delivery as any).ready_at_time || (delivery.created_at ? new Date(new Date(delivery.created_at).getTime() + 10 * 60000).toISOString() : null)
+            time: delivery.ready_at_time || (delivery.created_at ? new Date(new Date(delivery.created_at).getTime() + 10 * 60000).toISOString() : null)
         },
         { 
             label: 'Coletado', 
@@ -444,22 +444,7 @@ const DeliveryManagement = () => {
     // Get unique stores for the filter
     const uniqueStores = Array.from(new Set(deliveries.map(d => d.store_name))).filter(Boolean).sort();
 
-    useEffect(() => {
-        fetchDeliveries();
-
-        const subscription = supabase
-            .channel('deliveries-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
-                fetchDeliveries();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(subscription);
-        };
-    }, []);
-
-    const fetchDeliveries = async () => {
+    const fetchDeliveries = useCallback(async () => {
         try {
             // Fetch everything separately for robust manual merging (prevents join issues)
             const [
@@ -476,7 +461,7 @@ const DeliveryManagement = () => {
             if (profError) console.error('Error fetching profiles:', profError);
             if (storeError) console.error('Error fetching stores:', storeError);
 
-            const mappedDeliveries = (deliveriesData || []).map((d: any) => {
+            const mappedDeliveries = (deliveriesData || []).map((d) => {
                 const store = (storesData || []).find(s => s.id === d.store_id);
                 // In some cases driver_id might be stored in courier_id or similar field in the deliveries table
                 const driverId = d.driver_id || d.courier_id;
@@ -489,11 +474,11 @@ const DeliveryManagement = () => {
                     driver_name: driver?.full_name || d.driver_name || 'Guepardo',
                     driver_photo: driver?.avatar_url || d.driver_photo,
                     driver_phone: driver?.phone || d.driver_phone,
-                    vehicle_plate: driver?.vehicle_plate || (driver as any)?.metadata?.vehicle_plate || d.vehicle_plate || 'HEZ-6664',
+                    vehicle_plate: driver?.vehicle_plate || (driver?.metadata as any)?.vehicle_plate || d.vehicle_plate || 'HEZ-6664',
                     payment_method: d.items?.paymentMethod || 'PIX',
                     order_value: parseFloat(d.items?.deliveryValue || '0') || 0,
                     origin: d.items?.origin || (d.items?.stopNumber ? 'Site' : 'Site/App')
-                };
+                } as Delivery;
             });
 
             setDeliveries(mappedDeliveries);
@@ -502,7 +487,22 @@ const DeliveryManagement = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => {
+        fetchDeliveries();
+
+        const subscription = supabase
+            .channel('deliveries-mgmt-updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
+                fetchDeliveries();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(subscription);
+        };
+    }, [fetchDeliveries, supabase]);
 
     const getStatusColor = (status: string) => {
         switch (status.toLowerCase()) {
@@ -561,7 +561,7 @@ const DeliveryManagement = () => {
     const handleExportPDF = () => {
         console.log('Exporting PDF for:', filteredDeliveries.length, 'deliveries');
         try {
-            const doc = new jsPDF() as any;
+            const doc = new jsPDF();
             const head = [['ID', 'Status', 'Data', 'Cliente', 'Lojista', 'Valor']];
             const body = filteredDeliveries.map(d => [
                 d.items?.displayId || d.id.slice(-6).toUpperCase(),

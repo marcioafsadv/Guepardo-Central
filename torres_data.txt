@@ -1,0 +1,41 @@
+{
+  "id": "5b4ce4be-c8cb-4cee-a0cd-ca6edce71901",
+  "fantasy_name": "Torres & Silva",
+  "company_name": "Torres & Silva Advogados Associados",
+  "cnpj": "55.698.582/0001-13",
+  "address": {
+    "city": "Itu",
+    "state": "SP",
+    "number": "468",
+    "street": "Rua dos Andradas",
+    "district": "Centro",
+    "zip_code": "13300-170",
+    "complement": "Sala 3"
+  },
+  "onboarding_status": "pending",
+  "document_url": null,
+  "contract_url": null,
+  "location_photo_url": null,
+  "all_keys": [
+    "id",
+    "cnpj",
+    "company_name",
+    "fantasy_name",
+    "phone",
+    "address",
+    "created_at",
+    "updated_at",
+    "tipo_pessoa",
+    "lat",
+    "lng",
+    "wallet_balance",
+    "asaas_customer_id",
+    "status",
+    "is_active",
+    "onboarding_status",
+    "document_url",
+    "contract_url",
+    "location_photo_url",
+    "onboarding_notes"
+  ]
+}

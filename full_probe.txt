@@ -1,0 +1,26 @@
+--- Full Database Probe ---
+Table "profiles": 7 records
+  Columns: ["id","full_name","birth_date","cpf","phone","gender","pix_key","avatar_url","work_city","status","created_at","updated_at","current_lat","current_lng","is_online","last_location_update","name","vehicle_type"]
+Table "perfis": null records
+Table "entregadores": null records
+Table "drivers": null records
+Table "couriers": null records
+Table "vehicles": 0 records
+Table "veiculos": null records
+Table "veículos": null records
+Table "frota": null records
+Table "addresses": 0 records
+Table "enderecos": null records
+Table "endereços": null records
+Table "localizacoes": null records
+Table "deliveries": 81 records
+  Columns: ["id","driver_id","store_name","store_address","customer_name","customer_address","customer_phone_suffix","items","collection_code","distance_to_store","delivery_distance","total_distance","earnings","status","created_at","completed_at","store_id","accepted_at","updated_at","batch_id"]
+Table "entregas": null records
+Table "pedidos": null records
+Table "stores": 4 records
+  Columns: ["id","cnpj","company_name","fantasy_name","phone","address","created_at","updated_at","tipo_pessoa","lat","lng","wallet_balance","asaas_customer_id","status","is_active"]
+Table "lojas": null records
+Table "estabelecimentos": null records
+Table "messages": 0 records
+Table "mensagens": null records
+Table "conversas": null records

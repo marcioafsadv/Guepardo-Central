@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     Search,
     Store,
@@ -25,7 +25,7 @@ import type { Store as StoreType, Delivery } from '../types';
 import { cn } from '../lib/utils';
 import { format } from 'date-fns';
 
-const formatAddress = (address: any) => {
+const formatAddress = (address: StoreType['address']) => {
     if (!address) return 'N/A';
     if (typeof address === 'string') return address;
     
@@ -302,6 +302,25 @@ const MerchantManagement = () => {
     const [selectedStore, setSelectedStore] = useState<StoreType | null>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
+    const fetchData = useCallback(async () => {
+        try {
+            const [storesRes, deliveriesRes] = await Promise.all([
+                supabase.from('stores').select('*').order('created_at', { ascending: false }),
+                supabase.from('deliveries').select('id, status, store_id, created_at')
+            ]);
+
+            if (storesRes.error) throw storesRes.error;
+            if (deliveriesRes.error) throw deliveriesRes.error;
+
+            setStores(storesRes.data || []);
+            setDeliveries(deliveriesRes.data || []);
+        } catch (err) {
+            console.error('Error fetching data:', err);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
     useEffect(() => {
         fetchData();
 
@@ -323,26 +342,7 @@ const MerchantManagement = () => {
             supabase.removeChannel(storesSubscription);
             supabase.removeChannel(deliveriesSubscription);
         };
-    }, []);
-
-    const fetchData = async () => {
-        try {
-            const [storesRes, deliveriesRes] = await Promise.all([
-                supabase.from('stores').select('*').order('created_at', { ascending: false }),
-                supabase.from('deliveries').select('id, status, store_id, created_at')
-            ]);
-
-            if (storesRes.error) throw storesRes.error;
-            if (deliveriesRes.error) throw deliveriesRes.error;
-
-            setStores(storesRes.data || []);
-            setDeliveries(deliveriesRes.data || []);
-        } catch (err) {
-            console.error('Error fetching data:', err);
-        } finally {
-            setLoading(false);
-        }
-    };
+    }, [fetchData, supabase]);
 
     const toggleIsActive = async (id: string, currentStatus: boolean) => {
         try {
@@ -384,7 +384,7 @@ const MerchantManagement = () => {
 
     const handleUpdateOnboarding = async (storeId: string, status: 'approved' | 'rejected', notes?: string) => {
         try {
-            const updates: any = { 
+            const updates: Partial<StoreType> = { 
                 onboarding_status: status,
                 onboarding_notes: notes 
             };

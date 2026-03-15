@@ -1,0 +1,19 @@
+--- Profile ID Check ---
+Profiles found: 7
+Profile: "null" ID: 5b4ce4be-c8cb-4cee-a0cd-ca6edce71901
+Profile: "washington Torres" ID: 4323a996-09b6-4ab5-b3f6-185b269cdefa
+Profile: "null" ID: 1197db1f-036b-4814-9806-41046d84ebdf
+Profile: "João Silva Santos" ID: 0decb1d7-eca8-4382-83db-c2116dcb3864
+Profile: "null" ID: 26de04b4-6214-4cbb-9a8f-0cbb8b079761
+Profile: "Jessica da Silva Souza" ID: 3924743f-6be5-4d68-ad18-ccf75487d252
+Profile: "null" ID: fac5a0c7-8761-4c17-9913-6f8d92369545
+
+Vehicles found: 3
+Vehicle: Honda Fan 160 (HEZ-6664) UserID: 0decb1d7-eca8-4382-83db-c2116dcb3864
+Vehicle: HONDA NEW CITY EXL (UEN5F45) UserID: 4323a996-09b6-4ab5-b3f6-185b269cdefa
+Vehicle: PCX (FAW5J99) UserID: 3924743f-6be5-4d68-ad18-ccf75487d252
+
+Addresses found: 3
+Address: Rua Sueli Aparecida Costa UserID: 0decb1d7-eca8-4382-83db-c2116dcb3864
+Address: Rua Desembargador Ewelson Soares Pinto UserID: 4323a996-09b6-4ab5-b3f6-185b269cdefa
+Address: Rua Carlos Scalet UserID: 3924743f-6be5-4d68-ad18-ccf75487d252

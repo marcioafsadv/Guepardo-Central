@@ -1,0 +1,3 @@
+--- Finding All Tables ---
+info_schema probe error: Could not find the table 'public.information_schema.tables' in the schema cache
+Files for Joao: ["avatar.jpg","bike_photo.jpg","cnh_back.jpg","cnh_front.jpg","crlv.jpg","proof_residence.jpg"]

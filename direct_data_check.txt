@@ -1,0 +1,16 @@
+--- Direct Data Check (No Filters) ---
+
+Table: vehicles
+  Count (exact): 3
+  Rows returned: 3
+  First Row Sample: {"id":"550aa132-666c-475b-967c-30fe382c633f","user_id":"0decb1d7-eca8-4382-83db-c2116dcb3864","cnh_number":"75949994759","cnh_validity":"2031-10-18","plate":"HEZ-6664","plate_state":"SP","plate_city":"Itu","model":"Honda Fan 160","year":2018,"color":"Preta","renavam":"84238551637","is_owner":true,"cnh_front_url":"https://eviukbluwrwcblwhkzwz.supabase.co/storage/v1/object/public/courier-documents/0decb1d7-eca8-4382-83db-c2116dcb3864/cnh_front.jpg","cnh_back_url":"https://eviukbluwrwcblwhkzwz.supabase.co/storage/v1/object/public/courier-documents/0decb1d7-eca8-4382-83db-c2116dcb3864/cnh_back.jpg","crlv_url":"https://eviukbluwrwcblwhkzwz.supabase.co/storage/v1/object/public/courier-documents/0decb1d7-eca8-4382-83db-c2116dcb3864/crlv.jpg","bike_photo_url":"https://eviukbluwrwcblwhkzwz.supabase.co/storage/v1/object/public/courier-documents/0decb1d7-eca8-4382-83db-c2116dcb3864/bike_photo.jpg","created_at":"2026-01-31T14:14:33.066095+00:00","updated_at":"2026-01-31T14:14:33.066095+00:00"}
+
+Table: addresses
+  Count (exact): 3
+  Rows returned: 3
+  First Row Sample: {"id":"32d638fb-b0f0-4b65-8842-44a3aac0745e","user_id":"0decb1d7-eca8-4382-83db-c2116dcb3864","zip_code":"13310200","street":"Rua Sueli Aparecida Costa","number":"400","complement":"Bloco 5 Apto 402","district":"Parque Nossa Senhora da Candelária","city":"Itu","state":"SP","reference":"Cond. Ilha dos Corais","created_at":"2026-01-31T14:14:32.935976+00:00","updated_at":"2026-01-31T14:14:32.935976+00:00"}
+
+Table: profiles
+  Count (exact): 7
+  Rows returned: 5
+  First Row Sample: {"id":"5b4ce4be-c8cb-4cee-a0cd-ca6edce71901","full_name":"","birth_date":null,"cpf":null,"phone":"","gender":null,"pix_key":null,"avatar_url":null,"work_city":null,"status":"approved","created_at":"2026-02-13T19:53:49.333539+00:00","updated_at":"2026-02-16T14:39:30.785398+00:00","current_lat":null,"current_lng":null,"is_online":false,"last_location_update":null,"name":null,"vehicle_type":null}

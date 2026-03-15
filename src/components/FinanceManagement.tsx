@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
     TrendingUp,
     DollarSign,
@@ -25,23 +25,9 @@ const FinanceManagement = () => {
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
 
-    useEffect(() => {
-        fetchFinanceData();
-
-        const subscription = supabase
-            .channel('finance-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
-                fetchFinanceData();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(subscription);
-        };
-    }, [dateFilter, startDate, endDate]);
-
-    const fetchFinanceData = async () => {
+    const fetchFinanceData = useCallback(async () => {
         try {
+            setLoading(true);
             let query = supabase
                 .from('deliveries')
                 .select(`
@@ -86,7 +72,7 @@ const FinanceManagement = () => {
 
             if (error) throw error;
 
-            const mapped = data?.map((d: any) => {
+            const mapped = (data || []).map((d: any) => {
                 const totalMerchant = 8.00 + ((d.delivery_distance || 0) * 1.32);
                 const platformFee = totalMerchant - (d.earnings || 0);
 
@@ -104,11 +90,27 @@ const FinanceManagement = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [dateFilter, startDate, endDate]);
 
-    const totalVolume = deliveries.reduce((acc: number, curr: any) => acc + (curr.calculated_merchant_fee || 0), 0);
-    const courierTotal = deliveries.reduce((acc: number, curr: Delivery) => acc + (curr.earnings || 0), 0);
-    const platformTotal = deliveries.reduce((acc: number, curr: any) => acc + (curr.calculated_platform_fee || 0), 0);
+    useEffect(() => {
+        void fetchFinanceData();
+
+        const subscription = supabase
+            .channel('finance-updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
+                void fetchFinanceData();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(subscription);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchFinanceData, supabase]);
+
+    const totalVolume = deliveries.reduce((acc, curr) => acc + (curr.calculated_merchant_fee || 0), 0);
+    const courierTotal = deliveries.reduce((acc, curr) => acc + (curr.earnings || 0), 0);
+    const platformTotal = deliveries.reduce((acc, curr) => acc + (curr.calculated_platform_fee || 0), 0);
 
     const filteredDeliveries = deliveries.filter((d: Delivery) =>
         d.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -212,7 +214,7 @@ const FinanceManagement = () => {
                             ].map((filter) => (
                                 <button
                                     key={filter.id}
-                                    onClick={() => setDateFilter(filter.id as any)}
+                                    onClick={() => setDateFilter(filter.id as 'all' | 'today' | '7days' | '30days' | 'custom')}
                                     className={cn(
                                         "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
                                         dateFilter === filter.id
@@ -294,7 +296,7 @@ const FinanceManagement = () => {
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <span className="text-xs font-black text-white">R$ {(delivery as any).calculated_merchant_fee?.toFixed(2) || '0.00'}</span>
+                                            <span className="text-xs font-black text-white">R$ {delivery.calculated_merchant_fee?.toFixed(2) || '0.00'}</span>
                                         </td>
                                         <td className="px-8 py-5 text-right">
                                             <span className="text-xs font-bold text-blue-400">
@@ -303,7 +305,7 @@ const FinanceManagement = () => {
                                         </td>
                                         <td className="px-8 py-5 text-right">
                                             <span className="text-[10px] font-black text-guepardo-orange bg-guepardo-orange/10 px-2 py-1 rounded-md border border-guepardo-orange/10">
-                                                R$ {(delivery as any).calculated_platform_fee?.toFixed(2) || '0.00'}
+                                                R$ {delivery.calculated_platform_fee?.toFixed(2) || '0.00'}
                                             </span>
                                         </td>
                                         <td className="px-8 py-5 text-right">

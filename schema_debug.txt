@@ -1,0 +1,39 @@
+--- Schema Cache Debug ---
+Querying "veículos":
+  Status: 404 (Not Found)
+  Error Code: PGRST205
+  Message: Could not find the table 'public.veículos' in the schema cache
+  Hint: Perhaps you meant the table 'public.vehicles'
+
+Querying ""veículos"":
+  Status: 404 (Not Found)
+  Error Code: PGRST205
+  Message: Could not find the table 'public."veículos"' in the schema cache
+  Hint: Perhaps you meant the table 'public.vehicles'
+
+Querying "public.veículos":
+  Status: 404 (Not Found)
+  Error Code: PGRST205
+  Message: Could not find the table 'public.public.veículos' in the schema cache
+  Hint: Perhaps you meant the table 'public.deliveries'
+
+Querying "veiculos":
+  Status: 404 (Not Found)
+  Error Code: PGRST205
+  Message: Could not find the table 'public.veiculos' in the schema cache
+  Hint: Perhaps you meant the table 'public.vehicles'
+
+Querying "vehicles":
+  Status: 200 (OK)
+  Success! Rows: 0
+
+Querying "perfis":
+  Status: 404 (Not Found)
+  Error Code: PGRST205
+  Message: Could not find the table 'public.perfis' in the schema cache
+  Hint: Perhaps you meant the table 'public.profiles'
+
+Querying "profiles":
+  Status: 200 (OK)
+  Success! Rows: 1
+

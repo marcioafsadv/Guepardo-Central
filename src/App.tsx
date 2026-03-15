@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Download, Activity, LayoutDashboard, Map as MapIcon,
   Settings, LogOut, TrendingUp, Package, Bike, Store, DollarSign, Clock, X
@@ -39,31 +39,13 @@ const App = () => {
   });
   const [selectedTrackingId, setSelectedTrackingId] = useState<string | null>(null);
   const [chatDelivery, setChatDelivery] = useState<Delivery | null>(null);
+  const [allData, setAllData] = useState<{
+    drivers: any[];
+    stores: any[];
+    deliveries: any[];
+  }>({ drivers: [], stores: [], deliveries: [] });
 
-  useEffect(() => {
-    fetchStats();
-
-    const deliverySubscription = supabase
-      .channel('any')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
-        fetchStats();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, () => {
-        fetchStats();
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(deliverySubscription);
-    };
-  }, []);
-
-  useEffect(() => {
-    localStorage.setItem('guepardo-theme', theme);
-    document.body.className = `theme-${theme}`;
-  }, [theme]);
-
-  const fetchStats = async () => {
+  const fetchStats = useCallback(async () => {
     try {
       const { count: deliveriesCount, error: err1 } = await supabase
         .from('deliveries')
@@ -82,9 +64,9 @@ const App = () => {
         .select('*');
       if (err3) console.error('Error fetching stores:', err3);
 
-      const registeredMerchants = stores ? stores.length : 0;
-      const openMerchants = stores ? stores.filter(s => s.status === 'open' || !s.status).length : 0;
-      const closedMerchants = stores ? stores.filter(s => s.status === 'closed' || s.status === 'paused').length : 0;
+      const registeredMerchantsCount = stores ? stores.length : 0;
+      const openMerchantsCount = stores ? stores.filter(s => s.status === 'open' || !s.status).length : 0;
+      const closedMerchantsCount = stores ? stores.filter(s => s.status === 'closed' || s.status === 'paused').length : 0;
 
 
       const { data: allDeliveries } = await supabase
@@ -139,10 +121,10 @@ const App = () => {
       setStats({
         activeDeliveries: deliveriesCount || 0,
         onlineDrivers: driversCount || 0,
-        activeMerchants: openMerchants || 0,
-        registeredMerchants: registeredMerchants || 0,
-        openMerchants: openMerchants || 0,
-        closedMerchants: closedMerchants || 0,
+        activeMerchants: openMerchantsCount || 0,
+        registeredMerchants: registeredMerchantsCount || 0,
+        openMerchants: openMerchantsCount || 0,
+        closedMerchants: closedMerchantsCount || 0,
         todayRevenue: todayRevenue,
         totalDelivered: deliveredOrders.length,
         totalRevenue: totalRevenue,
@@ -153,13 +135,33 @@ const App = () => {
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
-  };
+  }, []);
 
-  const [allData, setAllData] = useState<{
-    drivers: any[];
-    stores: any[];
-    deliveries: any[];
-  }>({ drivers: [], stores: [], deliveries: [] });
+  useEffect(() => {
+    fetchStats();
+
+    const deliverySubscription = supabase
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
+      .channel('deliveries-updates')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
+        fetchStats();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, () => {
+        fetchStats();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(deliverySubscription);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchStats, supabase]);
+
+  useEffect(() => {
+    localStorage.setItem('guepardo-theme', theme);
+    document.body.className = `theme-${theme}`;
+  }, [theme]);
+
 
   const menuItems = [
     { id: 'dashboard', label: 'Painel Central', icon: LayoutDashboard },

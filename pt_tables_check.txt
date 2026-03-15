@@ -1,0 +1,4 @@
+--- Checking PT Tables ---
+Table "veículos": NOT FOUND (Could not find the table 'public.veículos' in the schema cache)
+Table "endereços": NOT FOUND (Could not find the table 'public.endereços' in the schema cache)
+Table "perfis": NOT FOUND (Could not find the table 'public.perfis' in the schema cache)

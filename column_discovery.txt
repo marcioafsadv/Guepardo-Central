@@ -1,0 +1,13 @@
+--- Table Column Investigation ---
+Table "vehicles":
+  Empty table. Trying to find columns via Error...
+  Column "user_id" EXISTS in vehicles
+  Column "model" EXISTS in vehicles
+  Column "plate" EXISTS in vehicles
+Table "addresses":
+  Empty table. Trying to find columns via Error...
+  Column "user_id" EXISTS in addresses
+  Column "street" EXISTS in addresses
+  Column "city" EXISTS in addresses
+Table "profiles":
+  Keys: ["id","full_name","birth_date","cpf","phone","gender","pix_key","avatar_url","work_city","status","created_at","updated_at","current_lat","current_lng","is_online","last_location_update","name","vehicle_type"]

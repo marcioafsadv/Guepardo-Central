@@ -1,0 +1,11 @@
+--- Table Verification ---
+Table "vehicles": EXISTS
+  Table is empty.
+Table "addresses": EXISTS
+  Table is empty.
+Table "driver_vehicles": NOT FOUND or ERROR: Could not find the table 'public.driver_vehicles' in the schema cache
+Table "driver_addresses": NOT FOUND or ERROR: Could not find the table 'public.driver_addresses' in the schema cache
+Table "courier_vehicles": NOT FOUND or ERROR: Could not find the table 'public.courier_vehicles' in the schema cache
+Table "courier_addresses": NOT FOUND or ERROR: Could not find the table 'public.courier_addresses' in the schema cache
+
+Profiles Sample Metadata: "NONE"

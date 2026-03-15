@@ -1,0 +1,9 @@
+--- Column Investigation ---
+Column "vehicle_model": ERROR - column profiles.vehicle_model does not exist
+Column "vehicle_plate": ERROR - column profiles.vehicle_plate does not exist
+Column "cnh_number": ERROR - column profiles.cnh_number does not exist
+Column "vehicle_color": ERROR - column profiles.vehicle_color does not exist
+Column "address": ERROR - column profiles.address does not exist
+Column "metadata": ERROR - column profiles.metadata does not exist
+Vehicles for Joao: []
+Addresses for Joao: []

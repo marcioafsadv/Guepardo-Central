@@ -1,16 +1,25 @@
+export interface StoreAddress {
+    street?: string;
+    number?: string;
+    district?: string;
+    city?: string;
+    state?: string;
+    zip_code?: string;
+}
+
 export interface Store {
     id: string;
     fantasy_name?: string;
     company_name?: string;
     document?: string;
-    status?: 'open' | 'closed' | 'paused';
+    status?: 'open' | 'closed' | 'paused' | string;
     balance?: number;
     cancel_rate?: number;
     tipo_pessoa?: string;
     is_active?: boolean;
     lat?: number;
     lng?: number;
-    address?: string | any;
+    address?: string | StoreAddress;
     cnpj?: string;
     phone?: string;
     created_at?: string;
@@ -47,8 +56,35 @@ export interface Profile {
     active_delivery_id?: string;
     completed_deliveries_count?: number;
     rating?: number;
-    metadata?: any;
+    metadata?: Record<string, unknown>;
+    created_at?: string;
     updated_at?: string;
+}
+
+export interface Address {
+    user_id: string;
+    street: string;
+    number: string;
+    district?: string;
+    city: string;
+    state: string;
+    zip_code?: string;
+    complement?: string;
+    full_name?: string;
+}
+
+export interface Vehicle {
+    user_id: string;
+    model: string;
+    plate: string;
+    color?: string;
+    year?: number;
+    cnh_number: string;
+    cnh_front_url?: string;
+    cnh_back_url?: string;
+    crlv_url?: string;
+    bike_photo_url?: string;
+    full_name?: string;
 }
 
 export interface Delivery {
@@ -65,22 +101,37 @@ export interface Delivery {
     store_name?: string;
     store_phone?: string;
     driver_id?: string;
+    courier_id?: string;
     driver_name?: string;
     driver_photo?: string;
     driver_phone?: string;
-    items?: any;
+    items?: Record<string, any>;
     collection_code?: string;
     delivery_distance?: number;
     estimated_arrival_time?: string;
     pickup_time?: string;
+    arrived_at_pickup_time?: string;
+    ready_at_time?: string;
     delivery_time?: string;
     cancel_reason?: string;
     accepted_at?: string;
     completed_at?: string;
+    displayId?: string;
+    calculated_merchant_fee?: number;
+    calculated_platform_fee?: number;
     vehicle_plate?: string;
     payment_method?: string;
     order_value?: number;
     origin?: string;
+}
+
+export interface DriverWithDetails extends Profile {
+    accepted_deliveries?: number;
+    rejected_deliveries?: number;
+    completed_deliveries?: number;
+    total_earnings?: number;
+    addresses?: Address;
+    vehicles?: Vehicle;
 }
 
 export interface Stats {

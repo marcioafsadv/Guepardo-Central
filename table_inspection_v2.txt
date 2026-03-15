@@ -1,0 +1,7 @@
+--- Inspecting Vehicles & Addresses ---
+Table "vehicles": EXISTS
+  Table is EMPTY.
+  Col probe error: column vehicles.non_existent_column does not exist
+Table "addresses": EXISTS
+  Table is EMPTY.
+  Col probe error: column addresses.non_existent_column does not exist

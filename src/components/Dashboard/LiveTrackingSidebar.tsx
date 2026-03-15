@@ -43,7 +43,7 @@ const LiveTrackingSidebar: React.FC<LiveTrackingSidebarProps> = ({ deliveries, o
                             )}
                             <div className="flex items-center justify-between mb-3">
                                 <span className="text-[10px] font-black text-guepardo-orange uppercase">
-                                    #{(delivery as any).displayId || delivery.items?.displayId || delivery.id.slice(0, 8)}
+                                    #{delivery.displayId || delivery.items?.displayId || delivery.id.slice(0, 8)}
                                 </span>
                                 <span className={cn(
                                     "px-2 py-0.5 rounded-full text-[8px] font-black uppercase tracking-tighter border",

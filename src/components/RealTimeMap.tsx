@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -15,7 +15,7 @@ const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 import markerIcon from 'leaflet/dist/images/marker-icon.png';
 import markerShadow from 'leaflet/dist/images/marker-shadow.png';
 
-let DefaultIcon = L.icon({
+const DefaultIcon = L.icon({
     iconUrl: markerIcon,
     shadowUrl: markerShadow,
     iconSize: [25, 41],
@@ -120,7 +120,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
 
     useEffect(() => {
         if (!selectedDeliveryId) {
-            setTrackingPoints([]);
+            setTimeout(() => setTrackingPoints([]), 0);
             return;
         }
 
@@ -141,7 +141,9 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
             }
         };
 
-        fetchTrackingPoints();
+        setTimeout(() => {
+            void fetchTrackingPoints();
+        }, 0);
 
         const channel = supabase
             .channel(`tracking - ${selectedDeliveryId} `)
@@ -158,7 +160,8 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
         return () => {
             supabase.removeChannel(channel);
         };
-    }, [selectedDeliveryId, mapInstance]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [selectedDeliveryId, mapInstance, supabase, deliveries, drivers]);
 
     // 3. Auto-center on selected delivery/driver
     useEffect(() => {
@@ -166,7 +169,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
 
         const delivery = deliveries.find(d => d.id === selectedDeliveryId);
         if (delivery) {
-            const driverId = (delivery as any).driver_id || (delivery as any).courier_id;
+            const driverId = delivery.driver_id || delivery.courier_id;
             const driver = drivers.find(p => p.id === driverId);
             
             // Priority: Driver location -> Delivery location
@@ -179,38 +182,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
         }
     }, [selectedDeliveryId, mapInstance, deliveries, drivers]);
 
-    useEffect(() => {
-        fetchMarkers();
-
-        const driverSub = supabase
-            .channel('drivers-location')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
-                fetchMarkers();
-            })
-            .subscribe();
-
-        const deliverySub = supabase
-            .channel('deliveries-tracking')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
-                fetchMarkers();
-            })
-            .subscribe();
-
-        const storeSub = supabase
-            .channel('stores-map')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, () => {
-                fetchMarkers();
-            })
-            .subscribe();
-
-        return () => {
-            supabase.removeChannel(driverSub);
-            supabase.removeChannel(deliverySub);
-            supabase.removeChannel(storeSub);
-        };
-    }, []);
-
-    const fetchMarkers = async () => {
+    const fetchMarkers = useCallback(async () => {
         try {
             // Fetch Online Drivers
             const { data: driversData } = await supabase
@@ -234,7 +206,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
             // Calculate routes for in_transit deliveries
             const newRoutes: Record<string, [number, number][]> = {};
             for (const delivery of deliveriesData || []) {
-                const driverId = (delivery as any).driver_id || (delivery as any).courier_id;
+                const driverId = delivery.driver_id || delivery.courier_id;
                 const driver = (driversData || []).find(d => d.id === driverId);
                 if (driver && (driver.current_lat || driver.latitude) && (driver.current_lng || driver.longitude) && delivery.latitude && delivery.longitude) {
                     try {
@@ -246,7 +218,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                         const data = await response.json();
 
                         if (data.routes && data.routes.length > 0) {
-                            newRoutes[delivery.id] = data.routes[0].geometry.coordinates.map((c: any) => [c[1], c[0]]);
+                            newRoutes[delivery.id] = data.routes[0].geometry.coordinates.map((c: [number, number]) => [c[1], c[0]]);
                         }
                     } catch (e) {
                         console.error("Mapbox Routing Error:", e);
@@ -258,7 +230,42 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
         } catch (err) {
             console.error('Error fetching markers:', err);
         }
-    };
+    }, [mapInstance, selectedDeliveryId, deliveries, drivers, supabase]);
+
+    useEffect(() => {
+        setTimeout(() => {
+            void fetchMarkers();
+        }, 0);
+
+        const driverSubscription = supabase
+            .channel('drivers-location')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+                fetchMarkers();
+            })
+            .subscribe();
+
+        const deliverySubscription = supabase
+            .channel('deliveries-tracking')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
+                fetchMarkers();
+            })
+            .subscribe();
+
+        const storeSubscription = supabase
+            .channel('stores-map')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, () => {
+                fetchMarkers();
+            })
+            .subscribe();
+
+        return () => {
+            supabase.removeChannel(driverSubscription);
+            supabase.removeChannel(deliverySubscription);
+            supabase.removeChannel(storeSubscription);
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [fetchMarkers, supabase, deliveries, drivers]);
+
 
     const getTileUrl = () => {
         if (mapMode === 'satellite') return `https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/256/{z}/{x}/{y}@2x?access_token=${MAPBOX_TOKEN}`;
@@ -283,8 +290,8 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
     };
 
     const handleSelectDriver = (driver: Profile) => {
-        const lat = (driver as any).current_lat || driver.latitude;
-        const lng = (driver as any).current_lng || driver.longitude;
+        const lat = driver.current_lat || driver.latitude;
+        const lng = driver.current_lng || driver.longitude;
         if (lat && lng) {
             mapInstance?.flyTo([lat, lng], 16);
             setSearchQuery('');
@@ -360,9 +367,9 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                     />
                 ))}
 
-                {drivers.filter(d => (d.role === 'courier' || (d as any).vehicle_type)).map((driver: Profile) => {
-                    const lat = (driver as any).current_lat || driver.latitude;
-                    const lng = (driver as any).current_lng || driver.longitude;
+                {drivers.filter(d => (d.role === 'courier' || d.vehicle_type)).map((driver: Profile) => {
+                    const lat = driver.current_lat || driver.latitude;
+                    const lng = driver.current_lng || driver.longitude;
                     return lat && lng && (
                         <Marker
                             key={driver.id}

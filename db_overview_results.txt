@@ -1,0 +1,9 @@
+--- Full Table List ---
+Table delivery_offers: NOT FOUND (Could not find the table 'public.delivery_offers' in the schema cache)
+Table delivery_rejections: NOT FOUND (Could not find the table 'public.delivery_rejections' in the schema cache)
+Table assignment_history: NOT FOUND (Could not find the table 'public.assignment_history' in the schema cache)
+Table driver_rejections: NOT FOUND (Could not find the table 'public.driver_rejections' in the schema cache)
+Table rejeicoes: NOT FOUND (Could not find the table 'public.rejeicoes' in the schema cache)
+Table ofertas: NOT FOUND (Could not find the table 'public.ofertas' in the schema cache)
+Deliveries Columns: ["id","driver_id","store_name","store_address","customer_name","customer_address","customer_phone_suffix","items","collection_code","distance_to_store","delivery_distance","total_distance","earnings","status","created_at","completed_at","store_id","accepted_at","updated_at","batch_id"]
+Profiles Columns: ["id","full_name","birth_date","cpf","phone","gender","pix_key","avatar_url","work_city","status","created_at","updated_at","current_lat","current_lng","is_online","last_location_update","name","vehicle_type"]

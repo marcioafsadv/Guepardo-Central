@@ -1,0 +1,7 @@
+--- UI Logic Introspection ---
+João Profile ID: "0decb1d7-eca8-4382-83db-c2116dcb3864" (length: 36)
+Matching Vehicles: 1
+First Matching Vehicle ID: 550aa132-666c-475b-967c-30fe382c633f
+Vehicle UserID: "0decb1d7-eca8-4382-83db-c2116dcb3864" (length: 36)
+ID Match Check: true
+Matching Addresses: 1

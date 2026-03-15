@@ -1,0 +1,23 @@
+Encontrados 3 lojistas cadastrados:
+
+- ID: 1197db1f-036b-4814-9806-41046d84ebdf
+  Nome Fantasia: MAFS ADVOCACIA
+  Razão Social: Marcio Silva
+  Documento (PF): N/A
+  Status: N/A
+  Saldo: R$ 0
+---
+- ID: 26de04b4-6214-4cbb-9a8f-0cbb8b079761
+  Nome Fantasia: Pilar 4
+  Razão Social: Pilar 4
+  Documento (PJ): N/A
+  Status: N/A
+  Saldo: R$ 0
+---
+- ID: 5b4ce4be-c8cb-4cee-a0cd-ca6edce71901
+  Nome Fantasia: Torres & Silva
+  Razão Social: Torres & Silva Advogados Associados
+  Documento (PJ): N/A
+  Status: N/A
+  Saldo: R$ 0
+---

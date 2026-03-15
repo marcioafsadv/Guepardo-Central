@@ -1,0 +1,102 @@
+
+> guepardo-central@0.0.0 lint
+> eslint .
+
+
+C:\Projetos\GUEPARDO-CENTRAL\apply_migration_fix.ts
+  7:7  error  'supabase' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Projetos\GUEPARDO-CENTRAL\check_store_columns.ts
+  1:10  error  'createClient' is defined but never used          @typescript-eslint/no-unused-vars
+  3:7   error  'supabaseUrl' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Projetos\GUEPARDO-CENTRAL\check_tables.ts
+  14:17  error  'data' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Projetos\GUEPARDO-CENTRAL\get_cols.ts
+  20:23  error  'error' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  26:29  error  'err' is assigned a value but never used    @typescript-eslint/no-unused-vars
+
+C:\Projetos\GUEPARDO-CENTRAL\inspect_tracking_v1.ts
+  3:13  error  'fs' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Projetos\GUEPARDO-CENTRAL\list_all_tables.ts
+  14:17  error  'data' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Projetos\GUEPARDO-CENTRAL\list_profiles_columns_v3.ts
+  16:36  error  'sqlError' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Projetos\GUEPARDO-CENTRAL\src\App.tsx
+  141:5  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projetos\GUEPARDO-CENTRAL\src\App.tsx:141:5
+  139 |
+  140 |   useEffect(() => {
+> 141 |     fetchStats();
+      |     ^^^^^^^^^^ Avoid calling setState() directly within an effect
+  142 |
+  143 |     const deliverySubscription = supabase
+  144 |       .channel('any')  react-hooks/set-state-in-effect
+
+C:\Projetos\GUEPARDO-CENTRAL\src\components\ChatMultilateral.tsx
+  28:8   warning  React Hook useEffect has a missing dependency: 'setupConversation'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  34:31  error    'error' is never reassigned. Use 'const' instead                                                                      prefer-const
+
+C:\Projetos\GUEPARDO-CENTRAL\src\components\DeliveryManagement.tsx
+  43:5  error  'DefaultIcon' is never reassigned. Use 'const' instead  prefer-const
+
+C:\Projetos\GUEPARDO-CENTRAL\src\components\FinanceManagement.tsx
+  41:8  warning  React Hook useEffect has a missing dependency: 'fetchFinanceData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Projetos\GUEPARDO-CENTRAL\src\components\RealTimeMap.tsx
+   18:5   error  'DefaultIcon' is never reassigned. Use 'const' instead                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    prefer-const
+  106:18  error  'e' is defined but never used                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             @typescript-eslint/no-unused-vars
+  123:13  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projetos\GUEPARDO-CENTRAL\src\components\RealTimeMap.tsx:123:13
+  121 |     useEffect(() => {
+  122 |         if (!selectedDeliveryId) {
+> 123 |             setTrackingPoints([]);
+      |             ^^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  124 |             return;
+  125 |         }
+  126 |  react-hooks/set-state-in-effect
+  233:9   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Projetos\GUEPARDO-CENTRAL\src\components\RealTimeMap.tsx:233:9
+  231 |
+  232 |     useEffect(() => {
+> 233 |         fetchMarkers();
+      |         ^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  234 |
+  235 |         const driverSub = supabase
+  236 |             .channel('drivers-location')            react-hooks/set-state-in-effect
+
+C:\Projetos\GUEPARDO-CENTRAL\test_fetch_stats.ts
+  23:34  error  'err3' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  32:41  error  'err4' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Projetos\GUEPARDO-CENTRAL\update_stores.ts
+  4:7  error  'supabaseAnonKey' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+??? 21 problems (19 errors, 2 warnings)
+  2 errors and 0 warnings potentially fixable with the `--fix` option.
+

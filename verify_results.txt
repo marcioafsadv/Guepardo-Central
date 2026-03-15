@@ -1,0 +1,44 @@
+--- Deliveries Status Counts ---
+Stats Sample (first 10 drivers):
+[
+  [
+    "0decb1d7-eca8-4382-83db-c2116dcb3864",
+    {
+      "total": 55,
+      "completed": 48,
+      "accepted": 52,
+      "cancelled": 7
+    }
+  ],
+  [
+    "4323a996-09b6-4ab5-b3f6-185b269cdefa",
+    {
+      "total": 1,
+      "completed": 1,
+      "accepted": 1,
+      "cancelled": 0
+    }
+  ],
+  [
+    "3924743f-6be5-4d68-ad18-ccf75487d252",
+    {
+      "total": 17,
+      "completed": 14,
+      "accepted": 11,
+      "cancelled": 3
+    }
+  ]
+]
+Available statuses in deliveries: ["cancelled","completed"]
+
+--- Checking for delivery_offers ---
+delivery_offers table error: Could not find the table 'public.delivery_offers' in the schema cache
+
+--- Checking for delivery_rejections ---
+delivery_rejections table error: Could not find the table 'public.delivery_rejections' in the schema cache
+
+--- Checking for delivery_tracking ---
+delivery_tracking exists! Columns: ["id","delivery_id","latitude","longitude","created_at"]
+
+--- Checking for driver_stats ---
+driver_stats table error: Could not find the table 'public.driver_stats' in the schema cache

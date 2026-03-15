@@ -98,7 +98,7 @@ const ProductivityMatrix: React.FC<ProductivityMatrixProps> = ({ drivers, mercha
                                 </div>
                                 <div>
                                     <p className="text-xs font-black text-white uppercase">{driver.full_name}</p>
-                                    <p className="text-[8px] text-[#A8A29E] font-bold uppercase tracking-tighter italic">Nível: {(driver as any).rating > 4.5 ? 'Platinum' : 'Standard'}</p>
+                                    <p className="text-[8px] text-[#A8A29E] font-bold uppercase tracking-tighter italic">Nível: {driver.rating && driver.rating > 4.5 ? 'Platinum' : 'Standard'}</p>
                                 </div>
                             </div>
                             <div className="flex items-center gap-8 text-right">

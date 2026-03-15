@@ -1,0 +1,7 @@
+﻿--- Exhaustive Table Check ---
+Table "vehicles": SUCCESS - Found 1 sample rows
+Table "veiculos": ERROR - Could not find the table 'public.veiculos' in the schema cache (Code: PGRST205)
+Table "ve├¡culos": ERROR - Could not find the table 'public.ve├¡culos' in the schema cache (Code: PGRST205)
+Table "addresses": SUCCESS - Found 1 sample rows
+Table "enderecos": ERROR - Could not find the table 'public.enderecos' in the schema cache (Code: PGRST205)
+Table "endere├ºos": ERROR - Could not find the table 'public.endere├ºos' in the schema cache (Code: PGRST205)
