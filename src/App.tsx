@@ -1,15 +1,21 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Download, Activity, LayoutDashboard, Map as MapIcon,
-  Settings, LogOut, TrendingUp, Package, Bike, Store, DollarSign, Clock, X
+  Settings, LogOut, TrendingUp, Package, Bike, Store, DollarSign, Clock, X,
+  Calendar, ChevronDown, Trophy, Medal, User
 } from 'lucide-react';
+import { startOfDay, subDays } from 'date-fns';
 import { cn } from './lib/utils';
 import { supabase } from './lib/supabase';
 import RealTimeMap from './components/RealTimeMap';
-import type { Stats } from './types';
 import LiveTrackingSidebar from './components/Dashboard/LiveTrackingSidebar';
 import ProductivityMatrix from './components/Dashboard/ProductivityMatrix';
 import ExceptionsWidget from './components/Dashboard/ExceptionsWidget';
+
+const currencyFormatter = new Intl.NumberFormat('pt-BR', {
+  style: 'currency',
+  currency: 'BRL',
+});
 import DeliveryManagement from './components/DeliveryManagement';
 import DriverManagement from './components/DriverManagement';
 import SettingsView from './components/Settings';
@@ -23,20 +29,6 @@ const App = () => {
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('guepardo-theme') as 'dark' | 'light') || 'dark';
   });
-  const [stats, setStats] = useState<Stats>({
-    activeDeliveries: 0,
-    onlineDrivers: 0,
-    activeMerchants: 0,
-    registeredMerchants: 0,
-    openMerchants: 0,
-    closedMerchants: 0,
-    todayRevenue: 0,
-    totalDelivered: 0,
-    totalRevenue: 0,
-    platformRevenue: 0,
-    waitingForPickup: 0,
-    cancelledOrders: 0
-  });
   const [selectedTrackingId, setSelectedTrackingId] = useState<string | null>(null);
   const [chatDelivery, setChatDelivery] = useState<Delivery | null>(null);
   const [allData, setAllData] = useState<{
@@ -44,98 +36,106 @@ const App = () => {
     stores: any[];
     deliveries: any[];
   }>({ drivers: [], stores: [], deliveries: [] });
+  
+  // New Filters
+  const [dateFilter, setDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
+  const [merchantSearch, setMerchantSearch] = useState('');
+  const [driverSearch, setDriverSearch] = useState('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const fetchStats = useCallback(async () => {
     try {
-      const { count: deliveriesCount, error: err1 } = await supabase
-        .from('deliveries')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'picked_up']);
-      if (err1) console.error('Error fetching deliveries:', err1);
+      setIsRefreshing(true);
+      const [driversRes, storesRes, deliveriesRes] = await Promise.all([
+        supabase.from('profiles').select('*'),
+        supabase.from('stores').select('*'),
+        supabase.from('deliveries').select('*')
+      ]);
 
-      const { count: driversCount, error: err2 } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'approved');
-      if (err2) console.error('Error fetching drivers:', err2);
+      const driversData = driversRes.data || [];
+      const storesData = storesRes.data || [];
+      const deliveriesData = deliveriesRes.data || [];
 
-      const { data: stores, error: err3 } = await supabase
-        .from('stores')
-        .select('*');
-      if (err3) console.error('Error fetching stores:', err3);
-
-      const registeredMerchantsCount = stores ? stores.length : 0;
-      const openMerchantsCount = stores ? stores.filter(s => s.status === 'open' || !s.status).length : 0;
-      const closedMerchantsCount = stores ? stores.filter(s => s.status === 'closed' || s.status === 'paused').length : 0;
-
-
-      const { data: allDeliveries } = await supabase
-        .from('deliveries')
-        .select('status, earnings, created_at, delivery_distance');
-
-      const deliveredOrders = allDeliveries?.filter(d => d.status === 'delivered' || d.status === 'completed') || [];
-
-      const deliveriesWithFees = deliveredOrders.map(d => {
+      const enrichedDeliveries = deliveriesData.map(d => {
+        const driver = driversData?.find(p => p.id === (d.driver_id || d.courier_id));
+        const store = storesData?.find(s => s.id === d.store_id);
+        
+        // Financial calculation
         const totalMerchant = 8.00 + ((d.delivery_distance || 0) * 1.32);
         const platformFee = totalMerchant - (d.earnings || 0);
-        return { ...d, totalMerchant, platformFee };
-      });
 
-      const totalRevenue = deliveriesWithFees.reduce((acc, curr) => acc + curr.totalMerchant, 0);
-      const platformRevenue = deliveriesWithFees.reduce((acc, curr) => acc + curr.platformFee, 0);
-
-      const waitingForPickupCount = allDeliveries?.filter(d =>
-        ['pending', 'accepted', 'arrived_at_pickup'].includes(d.status)
-      ).length || 0;
-
-      const cancelledOrdersCount = allDeliveries?.filter(d =>
-        ['canceled', 'cancelled'].includes(d.status)
-      ).length || 0;
-
-      // Calculate today's revenue
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayOrders = deliveriesWithFees.filter(d => new Date(d.created_at) >= today);
-      const todayRevenue = todayOrders.reduce((acc, curr) => acc + curr.totalMerchant, 0);
-
-      const { data: driversData } = await supabase.from('profiles').select('*');
-      const { data: storesData } = await supabase.from('stores').select('*');
-      const { data: deliveriesData } = await supabase.from('deliveries').select('*');
-
-      const enrichedDeliveries = (deliveriesData || []).map(d => {
-        const driver = driversData?.find(p => p.id === (d.driver_id || d.courier_id));
         return {
           ...d,
           driver_name: d.driver_name || driver?.full_name || 'Guepardo',
           driver_photo: d.driver_photo || driver?.avatar_url,
+          store_name: store?.fantasy_name || 'Lojista',
+          totalMerchant,
+          platformFee,
           displayId: d.items?.displayId?.toString() || d.id.slice(-6).toUpperCase()
         };
       });
 
       setAllData({
-        drivers: driversData || [],
-        stores: storesData || [],
+        drivers: driversData,
+        stores: storesData,
         deliveries: enrichedDeliveries
       });
 
-      setStats({
-        activeDeliveries: deliveriesCount || 0,
-        onlineDrivers: driversCount || 0,
-        activeMerchants: openMerchantsCount || 0,
-        registeredMerchants: registeredMerchantsCount || 0,
-        openMerchants: openMerchantsCount || 0,
-        closedMerchants: closedMerchantsCount || 0,
-        todayRevenue: todayRevenue,
-        totalDelivered: deliveredOrders.length,
-        totalRevenue: totalRevenue,
-        platformRevenue: platformRevenue,
-        waitingForPickup: waitingForPickupCount,
-        cancelledOrders: cancelledOrdersCount
-      });
     } catch (error) {
-      console.error('Error fetching stats:', error);
+      console.error('Error fetching data:', error);
+    } finally {
+      setIsRefreshing(false);
     }
   }, []);
+
+  const filteredStats = useMemo(() => {
+    const now = new Date();
+    const today = startOfDay(now);
+    
+    let filtered = allData.deliveries;
+
+    // Date Filter
+    if (dateFilter === 'today') {
+      filtered = filtered.filter(d => new Date(d.created_at).getTime() >= today.getTime());
+    } else if (dateFilter === '7d') {
+      filtered = filtered.filter(d => new Date(d.created_at).getTime() >= subDays(today, 7).getTime());
+    } else if (dateFilter === '30d') {
+      filtered = filtered.filter(d => new Date(d.created_at).getTime() >= subDays(today, 30).getTime());
+    }
+
+    // Merchant Filter
+    if (merchantSearch) {
+      filtered = filtered.filter(d => 
+        d.store_name?.toLowerCase().includes(merchantSearch.toLowerCase()) ||
+        d.fantasy_name?.toLowerCase().includes(merchantSearch.toLowerCase())
+      );
+    }
+
+    // Driver Filter
+    if (driverSearch) {
+      filtered = filtered.filter(d => 
+        d.driver_name?.toLowerCase().includes(driverSearch.toLowerCase()) ||
+        d.full_name?.toLowerCase().includes(driverSearch.toLowerCase())
+      );
+    }
+
+    const delivered = filtered.filter(d => ['delivered', 'completed'].includes(d.status));
+    const active = filtered.filter(d => ['accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'picked_up'].includes(d.status));
+    const waiting = filtered.filter(d => ['pending', 'accepted', 'arrived_at_pickup'].includes(d.status));
+    const cancelled = filtered.filter(d => ['canceled', 'cancelled'].includes(d.status));
+
+    const totalRevenue = delivered.reduce((acc, curr) => acc + (curr.totalMerchant || 0), 0);
+    const platformRevenue = delivered.reduce((acc, curr) => acc + (curr.platformFee || 0), 0);
+
+    return {
+      activeDeliveries: active.length,
+      totalDelivered: delivered.length,
+      waitingForPickup: waiting.length,
+      cancelledOrders: cancelled.length,
+      totalRevenue,
+      platformRevenue
+    };
+  }, [allData.deliveries, dateFilter, merchantSearch, driverSearch]);
 
   useEffect(() => {
     fetchStats();
@@ -237,15 +237,15 @@ const App = () => {
           </div>
 
           {/* Logo Centralizada no Cabeçalho */}
-          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-4 group cursor-pointer hidden md:flex">
+          <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center gap-6 group cursor-pointer hidden md:flex">
             <img
               src="/cheetah-scooter.png"
               alt="Guepardo"
-              className="h-12 w-auto object-contain transform group-hover:scale-110 transition-transform duration-300 drop-shadow-md"
+              className="h-[72px] w-auto object-contain transform group-hover:scale-110 transition-transform duration-300 drop-shadow-md"
             />
             <div className="flex flex-col items-start animate-in fade-in slide-in-from-left duration-300">
-              <span className="text-white font-black italic text-2xl leading-none tracking-tighter shadow-sm">GUEPARDO</span>
-              <span className="text-[#FF6B00] font-bold text-[10px] leading-none tracking-[0.3em] mt-1 shadow-sm">DELIVERY</span>
+              <span className="text-white font-black italic text-3xl leading-none tracking-tighter shadow-sm">GUEPARDO</span>
+              <span className="text-[#FF6B00] font-bold text-[12px] leading-none tracking-[0.3em] mt-1 shadow-sm">DELIVERY</span>
             </div>
           </div>
 
@@ -267,20 +267,96 @@ const App = () => {
         <div className={cn("flex-1 overflow-auto custom-scrollbar", activeTab === 'map' ? 'p-0 relative' : (activeTab === 'dashboard' ? 'p-0' : 'p-10'))}>
           {activeTab === 'dashboard' && (
             <div className="max-w-7xl mx-auto p-10 space-y-12">
-              <div className="flex flex-col gap-2">
-                <h1 className="text-4xl font-display italic font-black tracking-tight text-white drop-shadow-2xl">Dashboard Guepardo Central</h1>
+              <div className="flex flex-col gap-2 relative">
+                <div className="flex items-center gap-4">
+                  <h1 className="text-4xl font-display italic font-black tracking-tight text-white drop-shadow-2xl">Dashboard Guepardo Central</h1>
+                  {isRefreshing && (
+                    <div className="w-2 h-2 rounded-full bg-guepardo-orange animate-pulse shadow-[0_0_10px_#FF5F00]"></div>
+                  )}
+                </div>
                 <p className="text-[#A8A29E] font-medium uppercase text-xs tracking-widest">Controle e monitoramento de performance global.</p>
               </div>
 
-              {/* Stats Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-6">
+              {/* Advanced Filters Bar */}
+              <div className="flex flex-col md:flex-row items-center gap-4 bg-white/5 border border-white/10 p-4 rounded-2xl backdrop-blur-md">
+                <div className="flex items-center gap-3 bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 w-full md:w-auto">
+                  <Calendar className="w-4 h-4 text-guepardo-orange" />
+                  <select 
+                    value={dateFilter}
+                    onChange={(e) => setDateFilter(e.target.value as any)}
+                    className="bg-transparent text-white text-sm font-black focus:outline-none appearance-none cursor-pointer pr-8 uppercase tracking-tighter"
+                  >
+                    <option value="today" className="bg-[#1D0B04] text-white py-2">Hoje</option>
+                    <option value="7d" className="bg-[#1D0B04] text-white py-2">Últimos 7 dias</option>
+                    <option value="30d" className="bg-[#1D0B04] text-white py-2">Últimos 30 dias</option>
+                    <option value="all" className="bg-[#1D0B04] text-white py-2">Histórico Total</option>
+                  </select>
+                  <ChevronDown className="w-4 h-4 text-[#A8A29E] -ml-6 pointer-events-none" />
+                </div>
+
+                <div className="flex items-center gap-3 bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex-1 w-full">
+                  <Store className="w-4 h-4 text-[#A8A29E]" />
+                  <input 
+                    type="text" 
+                    placeholder="Filtrar por Lojista..." 
+                    value={merchantSearch}
+                    onChange={(e) => setMerchantSearch(e.target.value)}
+                    className="bg-transparent text-sm font-medium w-full focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex items-center gap-3 bg-black/40 px-4 py-2.5 rounded-xl border border-white/5 flex-1 w-full">
+                  <User className="w-4 h-4 text-[#A8A29E]" />
+                  <input 
+                    type="text" 
+                    placeholder="Filtrar por Entregador..." 
+                    value={driverSearch}
+                    onChange={(e) => setDriverSearch(e.target.value)}
+                    className="bg-transparent text-sm font-medium w-full focus:outline-none"
+                  />
+                </div>
+
+                <button 
+                  onClick={() => { setDateFilter('today'); setMerchantSearch(''); setDriverSearch(''); }}
+                  className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-[#A8A29E] transition-colors"
+                  title="Limpar Filtros"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Stats Grid - Financial (Row 1) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {[
-                  { label: 'Aguardando coleta', value: stats.waitingForPickup.toString(), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
-                  { label: 'Entregas em Rota', value: stats.activeDeliveries.toString(), icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10' },
-                  { label: 'Pedidos Entregues', value: stats.totalDelivered.toString(), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                  { label: 'Cancelados', value: stats.cancelledOrders.toString(), icon: X, color: 'text-red-400', bg: 'bg-red-500/10' },
-                  { label: 'Volume Lojistas', value: `R$ ${stats.totalRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} `, icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
-                  { label: 'Repasse Central', value: `R$ ${stats.platformRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} `, icon: TrendingUp, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+                  { label: 'Volume Lojistas', value: currencyFormatter.format(filteredStats.totalRevenue), icon: DollarSign, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
+                  { label: 'Repasse Central', value: currencyFormatter.format(filteredStats.platformRevenue), icon: TrendingUp, color: 'text-orange-400', bg: 'bg-orange-500/10' },
+                ].map((stat, i) => (
+                  <div key={i} className="bg-white/5 border border-white/10 p-10 rounded-[2.5rem] hover:bg-white/10 hover:border-white/20 transition-all duration-500 group shadow-2xl relative overflow-hidden backdrop-blur-sm border-l-4 border-l-guepardo-orange">
+                    <div className="absolute -right-4 -top-4 w-32 h-32 bg-brand-gradient opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-700"></div>
+                    <div className="flex items-center justify-between mb-8">
+                      <span className="text-sm text-[#A8A29E] font-black uppercase tracking-widest">{stat.label}</span>
+                      <div className={cn("p-4 rounded-2xl transition-all duration-500 group-hover:scale-110 shadow-lg", stat.bg, stat.color)}>
+                        <stat.icon className="w-8 h-8" />
+                      </div>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-5xl font-black tracking-tighter text-white">{stat.value}</span>
+                      <div className="flex items-center gap-1 mt-2">
+                        <div className="w-1.5 h-1.5 rounded-full bg-green-500"></div>
+                        <span className="text-[10px] text-green-500 font-bold uppercase">Performance Financeira Guepardo</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Stats Grid - Operational (Row 2) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {[
+                  { label: 'Pendente de Coleta', value: filteredStats.waitingForPickup.toString(), icon: Clock, color: 'text-amber-400', bg: 'bg-amber-500/10' },
+                  { label: 'Entregas em Rota', value: filteredStats.activeDeliveries.toString(), icon: Package, color: 'text-blue-400', bg: 'bg-blue-500/10' },
+                  { label: 'Cancelados', value: filteredStats.cancelledOrders.toString(), icon: X, color: 'text-red-400', bg: 'bg-red-500/10' },
+                  { label: 'Pedidos Entregues', value: filteredStats.totalDelivered.toString(), icon: TrendingUp, color: 'text-emerald-400', bg: 'bg-emerald-500/10' },
                 ].map((stat, i) => (
                   <div key={i} className="bg-white/5 border border-white/10 p-8 rounded-[2rem] hover:bg-white/10 hover:border-white/20 transition-all duration-500 group shadow-2xl relative overflow-hidden backdrop-blur-sm">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-700"></div>
@@ -294,14 +370,136 @@ const App = () => {
                       <span className="text-3xl font-black tracking-tighter text-white">{stat.value}</span>
                       <div className="flex items-center gap-1 mt-1">
                         <div className="w-1 h-1 rounded-full bg-green-500"></div>
-                        <span className="text-[10px] text-green-500 font-bold uppercase">Taxa de Eficiência 98%</span>
+                        <span className="text-[10px] text-green-500 font-bold uppercase">Consolidado em Tempo Real</span>
                       </div>
                     </div>
                   </div>
                 ))}
               </div>
 
-              {/* Productivity Matrix in Dashboard */}
+              {/* Dual Ranking Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mt-12 mb-12">
+                {/* Driver Ranking */}
+                <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl backdrop-blur-sm">
+                  <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-2xl bg-blue-500/10 text-blue-400">
+                        <Trophy className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black text-white tracking-tight italic uppercase">Guepardos em Destaque</h2>
+                        <p className="text-[#A8A29E] text-[10px] font-bold uppercase tracking-widest">Performance real dos nossos entregadores.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {allData.drivers
+                      .map(driver => {
+                        const completed = allData.deliveries.filter(d => 
+                          (d.driver_id === driver.id || d.courier_id === driver.id) && 
+                          ['delivered', 'completed'].includes(d.status)
+                        ).length;
+                        
+                        let rank = 'Padrão';
+                        let color = 'text-[#A8A29E]';
+                        let Icon = Bike;
+                        let score = '0';
+                        let glowClass = '';
+
+                        if (completed > 100) { rank = 'Lenda'; color = 'text-amber-400'; Icon = Trophy; score = '3'; glowClass = 'shadow-[0_0_15px_rgba(251,191,36,0.3)]'; }
+                        else if (completed > 50) { rank = 'Expert'; color = 'text-slate-300'; Icon = Medal; score = '2'; glowClass = 'shadow-[0_0_15px_rgba(203,213,225,0.3)]'; }
+                        else if (completed > 20) { rank = 'Pro'; color = 'text-orange-400'; Icon = Medal; score = '1'; glowClass = 'shadow-[0_0_15px_rgba(251,146,60,0.3)]'; }
+
+                        return { ...driver, completed, rank, color, Icon, score, glowClass };
+                      })
+                      .sort((a, b) => b.completed - a.completed)
+                      .slice(0, 5)
+                      .map((driver, i) => (
+                        <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-black/20 border border-white/5 hover:bg-black/40 transition-all group relative overflow-hidden">
+                           <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg", driver.color, "bg-white/5", driver.glowClass)}>
+                              <driver.Icon className="w-6 h-6" />
+                           </div>
+                           <div className="flex-1">
+                              <h4 className="text-sm font-black text-white tracking-tight truncate">{driver.full_name || 'Guepardo'}</h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                 <span className={cn("text-[10px] font-black uppercase tracking-widest", driver.color)}>{driver.rank}</span>
+                                 <span className="text-[#A8A29E] text-[10px] opacity-30">•</span>
+                                 <span className="text-white/80 text-[10px] font-bold">{driver.completed} Entregas</span>
+                              </div>
+                           </div>
+                           <div className="text-right">
+                             <p className="text-[10px] text-[#A8A29E] font-black uppercase tracking-tighter opacity-50">Score</p>
+                             <p className={cn("text-xl font-black leading-none", driver.color)}>{driver.score}</p>
+                           </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+
+                {/* Merchant Ranking */}
+                <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl backdrop-blur-sm relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-[80px] group-hover:bg-orange-500/10 transition-all"></div>
+                  <div className="flex items-center justify-between mb-8 relative z-10">
+                    <div className="flex items-center gap-4">
+                      <div className="p-3 rounded-2xl bg-orange-500/10 text-guepardo-orange shadow-glow">
+                        <Store className="w-6 h-6" />
+                      </div>
+                      <div>
+                        <h2 className="text-xl font-black text-white tracking-tight italic uppercase">Ranking de Lojistas</h2>
+                        <p className="text-[#A8A29E] text-[10px] font-bold uppercase tracking-widest">Liderança em volume real de pedidos.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 relative z-10">
+                    {allData.stores
+                      .map(store => {
+                        const completed = allData.deliveries.filter(d => 
+                          d.store_id === store.id && ['delivered', 'completed'].includes(d.status)
+                        ).length;
+                        
+                        let rank = 'Cliente Novo';
+                        let color = 'text-[#A8A29E]';
+                        let Icon = Store;
+                        let score = '0';
+                        let glowClass = '';
+
+                        if (completed > 500) { rank = 'Ouro'; color = 'text-amber-400'; Icon = Trophy; score = '3'; glowClass = 'shadow-[0_0_15px_rgba(251,191,36,0.3)]'; }
+                        else if (completed > 250) { rank = 'Prata'; color = 'text-slate-300'; Icon = Medal; score = '2'; glowClass = 'shadow-[0_0_15px_rgba(203,213,225,0.3)]'; }
+                        else if (completed > 50) { rank = 'Bronze'; color = 'text-orange-400'; Icon = Medal; score = '1'; glowClass = 'shadow-[0_0_15px_rgba(251,146,60,0.3)]'; }
+                        else if (completed <= 20) { rank = 'Cliente Novo'; color = 'text-blue-400'; Icon = User; score = '0'; }
+                        else { rank = 'Intermediário'; color = 'text-[#A8A29E]'; Icon = Store; score = '0'; }
+
+                        return { ...store, completed, rank, color, Icon, score, glowClass };
+                      })
+                      .sort((a, b) => b.completed - a.completed)
+                      .slice(0, 5)
+                      .map((store, i) => (
+                        <div key={i} className="flex items-center gap-4 p-4 rounded-2xl bg-black/20 border border-white/5 hover:bg-black/40 transition-all group overflow-hidden">
+                           <div className={cn("w-12 h-12 rounded-xl flex items-center justify-center font-black text-lg", store.color, "bg-white/5", store.glowClass)}>
+                              <store.Icon className="w-6 h-6" />
+                           </div>
+                           <div className="flex-1">
+                              <h4 className="text-sm font-black text-white tracking-tight truncate">{store.fantasy_name || 'Lojista'}</h4>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                 <span className={cn("text-[10px] font-black uppercase tracking-widest", store.color)}>{store.rank}</span>
+                                 <span className="text-[#A8A29E] text-[10px] opacity-30">•</span>
+                                 <span className="text-white/80 text-[10px] font-bold">{store.completed} Pedidos</span>
+                              </div>
+                           </div>
+                           <div className="text-right">
+                             <p className="text-[10px] text-[#A8A29E] font-black uppercase tracking-tighter opacity-50">Score</p>
+                             <p className={cn("text-xl font-black leading-none", store.color)}>{store.score}</p>
+                           </div>
+                        </div>
+                      ))
+                    }
+                  </div>
+                </div>
+              </div>
+
               <ProductivityMatrix drivers={allData.drivers} merchants={allData.stores} deliveries={allData.deliveries} />
             </div>
           )}
@@ -374,7 +572,7 @@ const App = () => {
             </div>
           )}
 
-          {(activeTab !== 'dashboard' && activeTab !== 'map' && activeTab !== 'deliveries' && activeTab !== 'merchants' && activeTab !== 'drivers' && activeTab !== 'settings') && (
+          {(activeTab !== 'dashboard' && activeTab !== 'map' && activeTab !== 'deliveries' && activeTab !== 'merchants' && activeTab !== 'drivers' && activeTab !== 'settings' && activeTab !== 'analytics') && (
             <div className="flex h-full flex-col items-center justify-center text-center p-12 bg-white/5 rounded-[3rem] border border-white/10 backdrop-blur-lg">
               <div className="relative group mb-10">
                 <div className="absolute -inset-4 bg-brand-gradient rounded-full blur opacity-20 group-hover:opacity-40 transition duration-1000 group-hover:duration-200"></div>
