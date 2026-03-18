@@ -185,13 +185,16 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                                     <PauseCircle className="w-4 h-4" /> {isPaused ? 'Retomar' : 'Pausar'}
                                 </button>
                                 <button
-                                    onClick={() => onStatusUpdate(store.is_active ?? true)}
+                                    onClick={() => onStatusUpdate(isOpen)}
                                     className={cn(
-                                        "flex-1 py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 uppercase tracking-widest border",
-                                        (store.is_active ?? true) ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/40" : "bg-red-500/20 text-red-500 border-red-500/40"
+                                        "flex-1 py-3 rounded-xl font-black text-sm transition-all flex items-center justify-center gap-2 uppercase tracking-widest border shadow-sm",
+                                        isOpen 
+                                            ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/40 shadow-glow-emerald" 
+                                            : "bg-red-500/10 text-red-500 border-red-500/30 hover:bg-red-500/20"
                                     )}
+                                    title={isOpen ? 'Desativar Operações' : 'Ativar Operações'}
                                 >
-                                    <Power className="w-4 h-4" /> {(store.is_active ?? true) ? 'Desativar' : 'Ativar'}
+                                    <Power className="w-4 h-4" /> {isOpen ? 'Desativar' : 'Ativar'}
                                 </button>
                             </div>
                         )}
@@ -344,14 +347,33 @@ const MerchantManagement = () => {
         };
     }, [fetchData, supabase]);
 
-    const toggleIsActive = async (id: string, currentStatus: boolean) => {
+    const toggleIsActive = async (id: string, currentIsOpen: boolean) => {
         try {
-            const { error } = await supabase
+            const nextActiveState = !currentIsOpen;
+            const nextStatus = nextActiveState ? 'aberta' : 'fechada';
+            
+            const { data, error } = await supabase
                 .from('stores')
-                .update({ is_active: !currentStatus })
-                .eq('id', id);
+                .update({ 
+                    is_active: nextActiveState,
+                    status: nextStatus 
+                })
+                .eq('id', id)
+                .select();
 
-            if (error) throw error;
+            if (error) {
+                console.error('Supabase update error:', error);
+                alert(`Erro de Banco de Dados: ${error.message}`);
+                throw error;
+            }
+
+            if (!data || data.length === 0) {
+                console.warn('Update affected 0 rows. Check RLS policies.');
+                alert('A atualização falhou (0 linhas afetadas). Provavelmente uma restrição de acesso (RLS) no Supabase.');
+                return;
+            }
+            
+            console.log('Update success:', data);
         } catch (err) {
             console.error('Error toggling active status:', err);
         }
@@ -674,11 +696,14 @@ const MerchantManagement = () => {
                                             <PauseCircle className="w-5 h-5" />
                                         </button>
                                         <button
-                                            onClick={() => toggleIsActive(store.id, store.is_active ?? true)}
+                                            onClick={() => toggleIsActive(store.id, isOpen)}
                                             className={cn(
-                                                "p-3 rounded-xl transition-all border",
-                                                (store.is_active ?? true) ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : "bg-stone-500/10 text-stone-400 border-stone-500/20"
+                                                "p-3 rounded-xl transition-all border shadow-sm",
+                                                isOpen 
+                                                    ? "bg-emerald-500/20 text-emerald-500 border-emerald-500/40 shadow-glow-emerald" 
+                                                    : "bg-red-500/10 text-red-500 border-red-500/20 hover:bg-red-500/20"
                                             )}
+                                            title={isOpen ? 'Desativar Operações' : 'Ativar Operações'}
                                         >
                                             <Power className="w-5 h-5" />
                                         </button>
@@ -697,7 +722,7 @@ const MerchantManagement = () => {
                     stats={getMerchantStats(selectedStore.id)}
                     onClose={() => setSelectedStore(null)}
                     onOnboardingUpdate={(status, notes) => handleUpdateOnboarding(selectedStore.id, status, notes)}
-                    onStatusUpdate={(isActive) => toggleIsActive(selectedStore.id, isActive)}
+                    onStatusUpdate={(isOpen) => toggleIsActive(selectedStore.id, isOpen)}
                     onPauseUpdate={(status) => togglePause(selectedStore.id, status)}
                 />
             )}

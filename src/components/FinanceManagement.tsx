@@ -6,16 +6,40 @@ import {
     Calendar,
     ArrowUpRight,
     Search,
-    Download,
     ChevronRight,
     Store,
-    Clock
+    Clock,
+    User,
+    Hash,
+    Truck,
+    CreditCard,
+    BarChart3,
+    PieChart as PieChartIcon,
+    X,
+    FileSpreadsheet,
+    FileText,
+    Printer
 } from 'lucide-react';
+import {
+    AreaChart,
+    Area,
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    ResponsiveContainer,
+    Cell
+} from 'recharts';
 import { supabase } from '../lib/supabase';
 import type { Delivery } from '../types';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '../lib/utils';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const FinanceManagement = () => {
     const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -24,6 +48,8 @@ const FinanceManagement = () => {
     const [dateFilter, setDateFilter] = useState<'all' | 'today' | '7days' | '30days' | 'custom'>('all');
     const [startDate, setStartDate] = useState<string>('');
     const [endDate, setEndDate] = useState<string>('');
+    const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
     const fetchFinanceData = useCallback(async () => {
         try {
@@ -118,15 +144,81 @@ const FinanceManagement = () => {
         d.customer_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
+    // Analytics Data Processing
+    const chartData = [...filteredDeliveries].reverse().map(d => ({
+        date: format(new Date(d.created_at), 'dd/MM'),
+        volume: d.calculated_merchant_fee || 0,
+        revenue: d.calculated_platform_fee || 0
+    })).slice(-15);
+
+    const storePerformance = deliveries.reduce((acc: any[], curr) => {
+        const existing = acc.find(a => a.name === curr.store_name);
+        if (existing) {
+            existing.value += 1;
+            existing.volume += curr.calculated_merchant_fee || 0;
+        } else {
+            acc.push({ name: curr.store_name, value: 1, volume: curr.calculated_merchant_fee || 0 });
+        }
+        return acc;
+    }, []).sort((a: any, b: any) => b.volume - a.volume).slice(0, 5);
+
+    const handleOpenDetails = (delivery: Delivery) => {
+        setSelectedDelivery(delivery);
+        setIsModalOpen(true);
+    };
+
+    const handleExportExcel = () => {
+        const data = filteredDeliveries.map(d => ({
+            'ID Pedido': d.items?.displayId || d.id.slice(-6).toUpperCase(),
+            'Lojista': d.store_name,
+            'Data': format(new Date(d.created_at), 'dd/MM/yyyy HH:mm'),
+            'Valor Lojista (R$)': d.calculated_merchant_fee?.toFixed(2) || '0.00',
+            'Repasse Entregador (R$)': d.earnings?.toFixed(2) || '0.00',
+            'Receita Central (R$)': d.calculated_platform_fee?.toFixed(2) || '0.00'
+        }));
+
+        const ws = XLSX.utils.json_to_sheet(data);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Histórico Financeiro");
+        XLSX.writeFile(wb, `guepardo_financeiro_${format(new Date(), 'dd_MM_yyyy')}.xlsx`);
+    };
+
+    const handleExportPDF = () => {
+        const doc = new jsPDF();
+        const head = [['ID', 'Lojista', 'Data/Hora', 'Vlr Lojista', 'Pág Entregador', 'Taxa (12.5%)']];
+        const body = filteredDeliveries.map(d => [
+            d.items?.displayId || d.id.slice(-6).toUpperCase(),
+            d.store_name,
+            format(new Date(d.created_at), 'dd/MM/yyyy HH:mm'),
+            `R$ ${d.calculated_merchant_fee?.toFixed(2) || '0.00'}`,
+            `R$ ${d.earnings?.toFixed(2) || '0.00'}`,
+            `R$ ${d.calculated_platform_fee?.toFixed(2) || '0.00'}`
+        ]);
+
+        doc.text("Guepardo - Relatório Financeiro", 14, 15);
+        autoTable(doc, {
+            head: head,
+            body: body,
+            startY: 20,
+            styles: { fontSize: 8 },
+            headStyles: { fillColor: [255, 107, 0] }
+        });
+        doc.save(`guepardo_financeiro_${format(new Date(), 'dd_MM_yyyy')}.pdf`);
+    };
+
+    const handlePrint = () => {
+        window.print();
+    };
+
     return (
-        <div className="space-y-10 animate-in fade-in duration-700">
+        <div className="space-y-10 animate-in fade-in duration-700 pb-20">
             {/* Header section with stats summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] relative overflow-hidden group hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm">
-                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500 opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-700"></div>
+                <div className="bg-white/5 border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm">
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500 opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
                     <div className="flex items-center justify-between mb-6">
-                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Volume de Transação</span>
-                        <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl">
+                        <span className="text-[10px] text-[#A8A29E] font-black uppercase tracking-widest">Volume de Transação</span>
+                        <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20 shadow-glow-emerald transition-all group-hover:scale-110">
                             <TrendingUp className="w-5 h-5" />
                         </div>
                     </div>
@@ -134,33 +226,33 @@ const FinanceManagement = () => {
                         <span className="text-3xl font-black text-white">R$ {totalVolume.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         <div className="flex items-center gap-1.5 text-emerald-500">
                             <ArrowUpRight size={14} className="font-bold" />
-                            <span className="text-[10px] font-black uppercase">Acumulado Total</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">Acumulado Total</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] relative overflow-hidden group hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm">
-                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-guepardo-orange opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-700"></div>
+                <div className="bg-white/5 border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm">
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-guepardo-orange opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
                     <div className="flex items-center justify-between mb-6">
-                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Repasse Central (12.5%)</span>
-                        <div className="p-3 bg-guepardo-orange/10 text-guepardo-orange rounded-2xl">
+                        <span className="text-[10px] text-[#A8A29E] font-black uppercase tracking-widest">Repasse Central (12.5%)</span>
+                        <div className="p-3 bg-guepardo-orange/10 text-guepardo-orange rounded-2xl border border-guepardo-orange/20 shadow-glow-orange transition-all group-hover:scale-110">
                             <DollarSign className="w-5 h-5" />
                         </div>
                     </div>
                     <div className="flex flex-col gap-1">
-                        <span className="text-3xl font-black text-white">R$ {platformTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                        <div className="flex items-center gap-1.5 text-orange-500">
+                        <span className="text-3xl font-black text-fluorescent-orange tracking-tighter">R$ {platformTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <div className="flex items-center gap-1.5 text-guepardo-orange">
                             <ArrowUpRight size={14} className="font-bold" />
-                            <span className="text-[10px] font-black uppercase">Receita Líquida App</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">Receita Líquida App</span>
                         </div>
                     </div>
                 </div>
 
-                <div className="bg-white/5 border border-white/10 p-8 rounded-[2.5rem] relative overflow-hidden group hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm">
-                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500 opacity-[0.03] group-hover:opacity-[0.08] rounded-full transition-all duration-700"></div>
+                <div className="bg-white/5 border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm">
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500 opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
                     <div className="flex items-center justify-between mb-6">
-                        <span className="text-xs text-[#A8A29E] font-bold uppercase tracking-widest">Total Entregadores (87.5%)</span>
-                        <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl">
+                        <span className="text-[10px] text-[#A8A29E] font-black uppercase tracking-widest">Total Entregadores (87.5%)</span>
+                        <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl border border-blue-500/20 shadow-glow-blue transition-all group-hover:scale-110">
                             <Package className="w-5 h-5" />
                         </div>
                     </div>
@@ -168,7 +260,7 @@ const FinanceManagement = () => {
                         <span className="text-3xl font-black text-white">R$ {courierTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         <div className="flex items-center gap-1.5 text-blue-400">
                             <ArrowUpRight size={14} className="font-bold" />
-                            <span className="text-[10px] font-black uppercase">Repasse aos Parceiros</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">Repasse aos Parceiros</span>
                         </div>
                     </div>
                 </div>
@@ -180,8 +272,8 @@ const FinanceManagement = () => {
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                         <div className="flex flex-col gap-1">
                             <h3 className="text-xl font-black text-white flex items-center gap-3">
-                                <Calendar className="text-guepardo-orange w-5 h-5" />
-                                Histórico Financeiro
+                                <Calendar className="text-guepardo-orange w-5 h-5 shadow-glow-orange" />
+                                <span className="text-fluorescent-orange">Histórico Financeiro</span>
                             </h3>
                             <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Relatório detalhado de transações</p>
                         </div>
@@ -192,14 +284,34 @@ const FinanceManagement = () => {
                                 <input
                                     type="text"
                                     placeholder="Buscar transação..."
-                                    className="pl-10 pr-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-guepardo-orange/50 transition-all w-full md:w-64"
+                                    className="pl-10 pr-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-guepardo-orange/50 transition-all w-full md:w-64 font-bold text-white"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </div>
-                            <button className="flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-bold text-white transition-all shadow-inner">
-                                <Download className="w-4 h-4" /> Exportar CSV
-                            </button>
+                            <div className="flex items-center gap-2 border-l border-white/10 pl-4 print:hidden">
+                                <button
+                                    onClick={handleExportExcel}
+                                    className="p-2.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 rounded-xl transition-all flex items-center gap-2 text-xs font-bold"
+                                    title="Exportar Excel"
+                                >
+                                    <FileSpreadsheet className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={handleExportPDF}
+                                    className="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 rounded-xl transition-all flex items-center gap-2 text-xs font-bold"
+                                    title="Exportar PDF"
+                                >
+                                    <FileText className="w-4 h-4" />
+                                </button>
+                                <button
+                                    onClick={handlePrint}
+                                    className="p-2.5 bg-white/5 hover:bg-white/10 text-white border border-white/10 rounded-xl transition-all flex items-center gap-2 text-xs font-bold"
+                                    title="Imprimir"
+                                >
+                                    <Printer className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
                     </div>
 
@@ -282,34 +394,39 @@ const FinanceManagement = () => {
                                             <span className="text-xs font-black text-white group-hover:text-guepardo-orange transition-colors">#{delivery.items?.displayId || delivery.id.slice(-6).toUpperCase()}</span>
                                         </td>
                                         <td className="px-8 py-5">
-                                            <div className="flex items-center gap-2">
-                                                <Store size={14} className="text-[#A8A29E]" />
-                                                <span className="text-xs font-bold text-white">{delivery.store_name}</span>
+                                            <div className="flex items-center gap-2.5">
+                                                <div className="p-1.5 bg-amber-500/10 text-amber-500 rounded-lg border border-amber-500/20">
+                                                    <Store size={14} />
+                                                </div>
+                                                <span className="text-[11px] font-black text-white uppercase tracking-tight">{delivery.store_name}</span>
                                             </div>
                                         </td>
                                         <td className="px-8 py-5">
                                             <div className="flex flex-col">
-                                                <span className="text-xs font-bold text-white">{format(new Date(delivery.created_at), 'dd/MM/yyyy', { locale: ptBR })}</span>
-                                                <span className="text-[10px] text-[#A8A29E] flex items-center gap-1 mt-0.5 font-medium uppercase tracking-tight">
+                                                <span className="text-xs font-black text-white">{format(new Date(delivery.created_at), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                                                <span className="text-[10px] text-[#A8A29E] flex items-center gap-1 mt-0.5 font-bold uppercase tracking-tight">
                                                     <Clock size={10} /> {format(new Date(delivery.created_at), 'HH:mm', { locale: ptBR })}h
                                                 </span>
                                             </div>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <span className="text-xs font-black text-white">R$ {delivery.calculated_merchant_fee?.toFixed(2) || '0.00'}</span>
+                                            <span className="text-sm font-black text-emerald-400">R$ {delivery.calculated_merchant_fee?.toFixed(2) || '0.00'}</span>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <span className="text-xs font-bold text-blue-400">
+                                            <span className="text-sm font-black text-blue-400">
                                                 R$ {(delivery.earnings || 0).toFixed(2)}
                                             </span>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <span className="text-[10px] font-black text-guepardo-orange bg-guepardo-orange/10 px-2 py-1 rounded-md border border-guepardo-orange/10">
+                                            <span className="text-[11px] font-black text-white bg-white/5 px-4 py-2 rounded-full border border-[#FF6B00] shadow-glow-orange transition-all group-hover:scale-105">
                                                 R$ {delivery.calculated_platform_fee?.toFixed(2) || '0.00'}
                                             </span>
                                         </td>
                                         <td className="px-8 py-5 text-right">
-                                            <button className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-[#A8A29E] transition-all">
+                                            <button
+                                                onClick={() => handleOpenDetails(delivery)}
+                                                className="p-2 bg-white/5 hover:bg-white/10 rounded-lg text-[#A8A29E] hover:text-guepardo-orange transition-all active:scale-95"
+                                            >
                                                 <ChevronRight size={16} />
                                             </button>
                                         </td>
@@ -326,6 +443,237 @@ const FinanceManagement = () => {
                     </table>
                 </div>
             </div>
+
+            {/* Analytics Dashboard */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl backdrop-blur-md relative overflow-hidden group">
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex flex-col gap-1">
+                            <h3 className="text-lg font-black text-white flex items-center gap-3">
+                                <BarChart3 className="text-guepardo-orange w-5 h-5 shadow-glow-orange" />
+                                <span>Volume de Vendas x Receita</span>
+                            </h3>
+                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Fluxo financeiro dos últimos 15 pedidos</p>
+                        </div>
+                    </div>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <AreaChart data={chartData}>
+                                <defs>
+                                    <linearGradient id="colorVolume" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#FF6B00" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#FF6B00" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                <XAxis
+                                    dataKey="date"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#A8A29E', fontSize: 10, fontWeight: 900 }}
+                                />
+                                <YAxis
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tick={{ fill: '#A8A29E', fontSize: 10, fontWeight: 900 }}
+                                    tickFormatter={(value) => `R$${value}`}
+                                />
+                                <Tooltip
+                                    contentStyle={{
+                                        backgroundColor: '#1A1C1E',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '12px',
+                                        fontSize: '12px',
+                                        fontWeight: '900'
+                                    }}
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="volume"
+                                    stroke="#FF6B00"
+                                    strokeWidth={3}
+                                    fillOpacity={1}
+                                    fill="url(#colorVolume)"
+                                    name="Volume Total"
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="revenue"
+                                    stroke="#10B981"
+                                    strokeWidth={3}
+                                    fill="transparent"
+                                    name="Receita Central"
+                                />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl backdrop-blur-md relative overflow-hidden group">
+                    <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500 opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex flex-col gap-1">
+                            <h3 className="text-lg font-black text-white flex items-center gap-3">
+                                <PieChartIcon className="text-blue-400 w-5 h-5 shadow-glow-blue" />
+                                <span>Performance por Lojista</span>
+                            </h3>
+                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Top 5 lojas com maior volume financeiro</p>
+                        </div>
+                    </div>
+                    <div className="h-[300px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={storePerformance} layout="vertical">
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" horizontal={false} />
+                                <XAxis type="number" hide />
+                                <YAxis
+                                    dataKey="name"
+                                    type="category"
+                                    axisLine={false}
+                                    tickLine={false}
+                                    width={120}
+                                    tick={{ fill: '#E5E5E5', fontSize: 9, fontWeight: 900 }}
+                                />
+                                <Tooltip
+                                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                    contentStyle={{
+                                        backgroundColor: '#1A1C1E',
+                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        borderRadius: '12px',
+                                        fontSize: '12px'
+                                    }}
+                                />
+                                <Bar dataKey="volume" radius={[0, 4, 4, 0]} name="Volume Total">
+                                    {storePerformance.map((_: any, index: number) => (
+                                        <Cell key={`cell-${index}`} fill={index === 0 ? '#FF6B00' : '#3B82F6'} fillOpacity={0.8} />
+                                    ))}
+                                </Bar>
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+            </div>
+
+            {/* Details Modal */}
+            {isModalOpen && selectedDelivery && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+                    <div className="bg-[#1A1C1E] border border-white/10 w-full max-w-2xl rounded-[2.5rem] overflow-hidden shadow-2xl relative">
+                        {/* Modal Header */}
+                        <div className="p-8 border-b border-white/5 bg-brand-gradient/5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 bg-brand-gradient rounded-2xl flex items-center justify-center shadow-glow">
+                                        <Hash className="text-white w-6 h-6" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <h2 className="text-2xl font-black text-white italic tracking-tighter uppercase leading-none">Pedido</h2>
+                                        <span className="text-guepardo-orange font-black text-lg tracking-tight">#{selectedDelivery.items?.displayId || selectedDelivery.id.slice(-6).toUpperCase()}</span>
+                                    </div>
+                                </div>
+                                <button
+                                    onClick={() => setIsModalOpen(false)}
+                                    className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl transition-all text-white/50 hover:text-white"
+                                >
+                                    <X className="w-5 h-5" />
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Modal Body */}
+                        <div className="p-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {/* Left Column: Client & Store */}
+                                <div className="space-y-6">
+                                    <div className="bg-white/5 border border-white/5 p-6 rounded-3xl">
+                                        <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest mb-4 block">Origem & Destino</span>
+                                        <div className="space-y-4">
+                                            <div className="flex items-start gap-4">
+                                                <div className="p-2 bg-amber-500/10 text-amber-500 rounded-lg">
+                                                    <Store size={16} />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-white uppercase">{selectedDelivery.store_name}</span>
+                                                    <span className="text-[8px] text-[#A8A29E] font-bold">Unidade Guepardo Parceira</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-start gap-4">
+                                                <div className="p-2 bg-blue-500/10 text-blue-500 rounded-lg">
+                                                    <User size={16} />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-white uppercase">{selectedDelivery.customer_name || 'Consumidor'}</span>
+                                                    <span className="text-[8px] text-[#A8A29E] font-bold leading-tight mt-0.5">{selectedDelivery.customer_address}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white/5 border border-white/5 p-6 rounded-3xl">
+                                        <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest mb-4 block">Logística</span>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="p-2 bg-white/10 text-white rounded-lg">
+                                                    <Truck size={16} />
+                                                </div>
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] font-black text-white">{selectedDelivery.delivery_distance?.toFixed(2)} KM</span>
+                                                    <span className="text-[8px] text-[#A8A29E] font-bold">Distância Percorrida</span>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <span className="text-[10px] font-black text-white block uppercase">{selectedDelivery.payment_method || 'A Definir'}</span>
+                                                <span className="text-[8px] text-[#A8A29E] font-bold">Forma de Pagamento</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column: Financial Breakdown */}
+                                <div className="space-y-6">
+                                    <div className="bg-black/40 border border-white/5 p-6 rounded-3xl shadow-inner">
+                                        <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest mb-4 block">Divisão de Valores</span>
+                                        <div className="space-y-4">
+                                            <div className="flex items-center justify-between py-2 border-b border-white/5">
+                                                <span className="text-[10px] font-bold text-[#A8A29E]">Valor Total Pago</span>
+                                                <span className="text-sm font-black text-white">R$ {selectedDelivery.calculated_merchant_fee?.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between py-2 border-b border-white/5">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                                                    <span className="text-[10px] font-bold text-[#A8A29E]">Ganhos Entregador</span>
+                                                </div>
+                                                <span className="text-[12px] font-black text-blue-400">- R$ {selectedDelivery.earnings?.toFixed(2)}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between pt-4">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="w-2 h-2 rounded-full bg-guepardo-orange shadow-glow"></div>
+                                                    <span className="text-[10px] font-black text-guepardo-orange uppercase">Líquido Central</span>
+                                                </div>
+                                                <span className="text-2xl font-black text-white px-5 py-2 rounded-full border border-[#FF6B00] shadow-glow-orange bg-white/5">R$ {selectedDelivery.calculated_platform_fee?.toFixed(2)}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center gap-4 bg-emerald-500/5 border border-emerald-500/10 p-5 rounded-3xl">
+                                        <div className="p-3 bg-emerald-500/20 text-emerald-400 rounded-2xl">
+                                            <CreditCard size={20} />
+                                        </div>
+                                        <div className="flex flex-col">
+                                            <span className="text-[10px] font-black text-emerald-400 uppercase tracking-widest">Status de Repasse</span>
+                                            <span className="text-[12px] font-bold text-white uppercase italic">Processado & Liquidado</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Modal Footer */}
+                        <div className="p-4 bg-black/40 border-t border-white/5 flex items-center justify-center">
+                            <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest">Guepardo Financial Ledger &copy; 2026 - Auditoria Verificada</span>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

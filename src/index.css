@@ -200,3 +200,25 @@ body.theme-light .map-control-button {
 .pulse-blue {
   animation: marker-pulse-blue 2s infinite;
 }
+
+/* Vibrancy & Glow Effects */
+.shadow-glow-orange {
+  box-shadow: 0 0 15px rgba(255, 107, 0, 0.4);
+}
+
+.shadow-glow-emerald {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.3);
+}
+
+.shadow-glow-blue {
+  box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+}
+
+.text-fluorescent-orange {
+  color: #FF6B00;
+  text-shadow: 0 0 10px rgba(255, 107, 0, 0.5);
+}
+
+.bg-brand-gradient {
+  background: linear-gradient(135deg, #FF6B00 0%, #D35400 100%);
+}

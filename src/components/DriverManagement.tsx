@@ -430,8 +430,8 @@ const DriverManagement = () => {
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white/5 p-6 rounded-[2rem] border border-white/10 backdrop-blur-md">
                 <div className="flex flex-col gap-1">
                     <h2 className="text-2xl font-black tracking-tight flex items-center gap-3">
-                        <User className="text-guepardo-orange" />
-                        Gestão de Entregadores
+                        <User className="text-guepardo-orange shadow-glow-orange" />
+                        <span className="text-fluorescent-orange">Gestão de Entregadores</span>
                     </h2>
                     <p className="text-xs text-[#A8A29E] font-medium uppercase tracking-widest">Controle de novos cadastros e frota ativa</p>
                 </div>
@@ -496,28 +496,34 @@ const DriverManagement = () => {
                             <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
 
                             {/* Header/Photo */}
-                            <div className={cn("flex items-center gap-5", viewMode === 'list' ? "w-64 shrink-0" : "mb-8")}>
+                            <div className={cn("flex items-center gap-5", viewMode === 'list' ? "w-72 shrink-0" : "mb-8")}>
                                 <div className="relative group/photo">
-                                    <div className="absolute -inset-1 bg-brand-gradient rounded-full blur opacity-10 group-hover/photo:opacity-30 transition"></div>
-                                    <div className="w-16 h-16 rounded-full bg-guepardo-brown-light border border-white/10 overflow-hidden relative flex items-center justify-center">
+                                    <div className="absolute -inset-1.5 bg-brand-gradient rounded-full blur opacity-20 group-hover/photo:opacity-40 transition duration-500"></div>
+                                    <div className="w-16 h-16 rounded-full bg-guepardo-brown-light border-2 border-white/10 overflow-hidden relative flex items-center justify-center shadow-xl">
                                         {driver.avatar_url ? (
                                             <img src={driver.avatar_url} alt={driver.full_name} className="w-full h-full object-cover" />
                                         ) : (
-                                            <span className="text-xl font-black text-guepardo-orange/40">{driver.full_name?.charAt(0)}</span>
+                                            <span className="text-xl font-black text-guepardo-orange/50">{driver.full_name?.charAt(0)}</span>
                                         )}
                                     </div>
+                                    <div className={cn(
+                                        "absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full border-2 border-[#1A1C1E] z-10",
+                                        driver.status === 'approved' || driver.status === 'active' ? 'bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]' :
+                                        driver.status === 'pending' ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.5)]' :
+                                        'bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.5)]'
+                                    )}></div>
                                 </div>
                                 <div className="flex flex-col min-w-0">
-                                    <h3 className="font-black text-white text-lg truncate group-hover:text-guepardo-orange transition-colors leading-tight">{driver.full_name}</h3>
-                                    <div className="flex flex-wrap items-center gap-2 mt-1">
-                                        <div className="flex items-center gap-1.5 text-[9px] text-blue-400 font-black uppercase tracking-widest bg-blue-500/10 px-2 py-0.5 rounded-md border border-blue-500/20">
+                                    <h3 className="font-black text-white text-lg truncate group-hover:text-guepardo-orange transition-colors leading-tight tracking-tight">{driver.full_name}</h3>
+                                    <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                        <div className="flex items-center gap-1.5 text-[9px] text-blue-400 font-black uppercase tracking-widest bg-blue-500/10 px-2.5 py-1 rounded-lg border border-blue-500/20 shadow-sm">
                                             <MapPin className="w-2.5 h-2.5" />
                                             {driver.work_city || 'S.P.'}
                                         </div>
                                         {driver.created_at && (
-                                            <div className="flex items-center gap-1.5 text-[9px] text-emerald-400 font-black uppercase tracking-widest bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                                            <div className="flex items-center gap-1.5 text-[9px] text-emerald-400 font-black uppercase tracking-widest bg-emerald-500/10 px-2.5 py-1 rounded-lg border border-emerald-500/20 shadow-sm">
                                                 <ShieldCheck className="w-2.5 h-2.5" />
-                                                Ativo desde {format(new Date(driver.created_at), 'dd/MM/yyyy')}
+                                                MEMBRO
                                             </div>
                                         )}
                                     </div>
@@ -546,45 +552,45 @@ const DriverManagement = () => {
                                     </div>
                                 </div>
 
-                                <div className="grid grid-cols-5 gap-2 pt-4 border-t border-white/5">
-                                    <div className="flex flex-col items-center p-2 bg-emerald-500/5 rounded-xl border border-emerald-500/10">
-                                        <span className="text-[12px] font-black text-emerald-400">{driver.stats?.completed || 0}</span>
-                                        <span className="text-[7px] font-black text-emerald-500/50 uppercase tracking-tighter">Feitas</span>
+                                <div className="grid grid-cols-5 gap-2.5 pt-6 border-t border-white/5">
+                                    <div className="flex flex-col items-center p-2.5 bg-emerald-500/10 rounded-xl border border-emerald-500/20 shadow-sm">
+                                        <span className="text-[14px] font-black text-emerald-400">{driver.stats?.completed || 0}</span>
+                                        <span className="text-[7px] font-black text-emerald-500/60 uppercase tracking-widest">Feitas</span>
                                     </div>
-                                    <div className="flex flex-col items-center p-2 bg-blue-500/5 rounded-xl border border-blue-500/10">
-                                        <span className="text-[12px] font-black text-blue-400">{driver.stats?.accepted || 0}</span>
-                                        <span className="text-[7px] font-black text-blue-500/50 uppercase tracking-tighter">Aceitas</span>
+                                    <div className="flex flex-col items-center p-2.5 bg-blue-500/10 rounded-xl border border-blue-500/20 shadow-sm">
+                                        <span className="text-[14px] font-black text-blue-400">{driver.stats?.accepted || 0}</span>
+                                        <span className="text-[7px] font-black text-blue-500/60 uppercase tracking-widest">Aceitas</span>
                                     </div>
-                                    <div className="flex flex-col items-center p-2 bg-amber-500/5 rounded-xl border border-amber-500/10">
-                                        <span className="text-[12px] font-black text-amber-400">{driver.stats?.active || 0}</span>
-                                        <span className="text-[7px] font-black text-amber-500/50 uppercase tracking-tighter">Em Rota</span>
+                                    <div className="flex flex-col items-center p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 shadow-sm">
+                                        <span className="text-[14px] font-black text-amber-500">{driver.stats?.active || 0}</span>
+                                        <span className="text-[7px] font-black text-amber-500/60 uppercase tracking-widest">Rota</span>
                                     </div>
-                                    <div className="flex flex-col items-center p-2 bg-red-500/5 rounded-xl border border-red-500/10">
-                                        <span className="text-[12px] font-black text-red-500">{driver.stats?.rejected || 0}</span>
-                                        <span className="text-[7px] font-black text-red-500/50 uppercase tracking-tighter">Rejeit.</span>
+                                    <div className="flex flex-col items-center p-2.5 bg-red-500/10 rounded-xl border border-red-500/20 shadow-sm">
+                                        <span className="text-[14px] font-black text-red-500">{driver.stats?.rejected || 0}</span>
+                                        <span className="text-[7px] font-black text-red-500/60 uppercase tracking-widest">Rejeit.</span>
                                     </div>
-                                    <div className="flex flex-col items-center p-2 bg-slate-500/5 rounded-xl border border-slate-500/10">
-                                        <span className="text-[12px] font-black text-slate-400">{driver.stats?.cancelled || 0}</span>
-                                        <span className="text-[7px] font-black text-slate-500/50 uppercase tracking-tighter">Canc.</span>
+                                    <div className="flex flex-col items-center p-2.5 bg-slate-500/10 rounded-xl border border-slate-500/20 shadow-sm">
+                                        <span className="text-[14px] font-black text-slate-400">{driver.stats?.cancelled || 0}</span>
+                                        <span className="text-[7px] font-black text-slate-500/60 uppercase tracking-widest">Canc.</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Actions */}
-                            <div className={cn("flex items-center gap-3", viewMode === 'list' ? "w-48 justify-end" : "justify-between mt-auto")}>
+                            <div className={cn("flex items-center gap-3", viewMode === 'list' ? "w-64 justify-end" : "justify-between mt-auto pt-6 border-t border-white/5")}>
                                 <button
                                     onClick={() => handleSelectDriver(driver)}
-                                    className="flex-1 flex items-center justify-center gap-2 px-6 py-3 bg-white/5 hover:bg-white/10 rounded-xl transition-all text-xs font-bold text-white border border-white/10 group-hover:border-white/20 shadow-inner"
+                                    className="flex-1 flex items-center justify-center gap-3 px-6 py-3.5 bg-guepardo-orange/10 hover:bg-guepardo-orange/20 rounded-[1.25rem] transition-all text-[10px] font-black text-guepardo-orange border border-guepardo-orange/20 group-hover:border-guepardo-orange/40 shadow-glow uppercase tracking-widest"
                                 >
-                                    <User className="w-4 h-4" /> Vistoriar
+                                    <ShieldCheck className="w-4 h-4" /> Vistoriar Cadastro
                                 </button>
                                 {driver.status === 'pending' && (
                                     <button
                                         onClick={() => handleUpdateStatus(driver.id, 'approved')}
-                                        className="p-3 bg-green-500/10 hover:bg-green-500/20 border border-green-500/20 rounded-xl text-green-500 transition-all hover:scale-110 shadow-glow"
+                                        className="p-3.5 bg-emerald-500 text-white rounded-[1.25rem] shadow-[0_0_20px_rgba(16,185,129,0.3)] hover:scale-110 active:scale-95 transition-all"
                                         title="Aprovar Imediatamente"
                                     >
-                                        <CheckCircle2 className="w-4 h-4" />
+                                        <CheckCircle2 className="w-5 h-5" />
                                     </button>
                                 )}
                             </div>
