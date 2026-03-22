@@ -18,7 +18,12 @@ import {
     X,
     FileSpreadsheet,
     FileText,
-    Printer
+    Printer,
+    Wallet,
+    CheckCircle,
+    AlertCircle,
+    Info,
+    ArrowDownLeft
 } from 'lucide-react';
 import {
     AreaChart,
@@ -50,6 +55,9 @@ const FinanceManagement = () => {
     const [endDate, setEndDate] = useState<string>('');
     const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [activeTab, setActiveTab] = useState<'history' | 'payouts'>('history');
+    const [payouts, setPayouts] = useState<any[]>([]);
+    const [isProcessing, setIsProcessing] = useState<string | null>(null);
 
     const fetchFinanceData = useCallback(async () => {
         try {
@@ -118,13 +126,38 @@ const FinanceManagement = () => {
         }
     }, [dateFilter, startDate, endDate]);
 
+    const fetchPayouts = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('withdrawal_requests')
+                .select(`
+                    *,
+                    profiles:user_id (
+                        full_name,
+                        email,
+                        phone
+                    )
+                `)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setPayouts(data || []);
+        } catch (err) {
+            console.error('Error fetching payouts:', err);
+        }
+    }, []);
+
     useEffect(() => {
         void fetchFinanceData();
+        void fetchPayouts();
 
         const subscription = supabase
             .channel('finance-updates')
             .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
                 void fetchFinanceData();
+            })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, () => {
+                void fetchPayouts();
             })
             .subscribe();
 
@@ -132,7 +165,7 @@ const FinanceManagement = () => {
             supabase.removeChannel(subscription);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchFinanceData, supabase]);
+    }, [fetchFinanceData, fetchPayouts, supabase]);
 
     const totalVolume = deliveries.reduce((acc, curr) => acc + (curr.calculated_merchant_fee || 0), 0);
     const courierTotal = deliveries.reduce((acc, curr) => acc + (curr.earnings || 0), 0);
@@ -210,8 +243,75 @@ const FinanceManagement = () => {
         window.print();
     };
 
+    const handleApprovePayout = async (payoutId: string) => {
+        try {
+            setIsProcessing(payoutId);
+            
+            // Aqui chamaremos a Edge Function process-payout futuramente
+            // Por enquanto, vamos simular a chamada e atualizar o status no banco
+            
+            const response = await fetch('https://eviukbluwrwcblwhkzwz.supabase.co/functions/v1/process-payout', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                },
+                body: JSON.stringify({ payoutId })
+            });
+
+            if (!response.ok) {
+                const errData = await response.json();
+                throw new Error(errData.error || 'Erro ao processar pagamento');
+            }
+
+            alert('Pagamento processado com sucesso via Mercado Pago!');
+            void fetchPayouts();
+            void fetchFinanceData();
+        } catch (err: any) {
+            console.error('Error approving payout:', err);
+            alert(`Falha ao processar: ${err.message}`);
+        } finally {
+            setIsProcessing(null);
+        }
+    };
+
     return (
         <div className="space-y-10 animate-in fade-in duration-700 pb-20">
+            {/* Tab Switche */}
+            <div className="flex items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 w-fit">
+                <button
+                    onClick={() => setActiveTab('history')}
+                    className={cn(
+                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+                        activeTab === 'history'
+                            ? "bg-brand-gradient text-white shadow-glow"
+                            : "text-[#A8A29E] hover:text-white hover:bg-white/5"
+                    )}
+                >
+                    <BarChart3 size={16} />
+                    Histórico de Corridas
+                </button>
+                <button
+                    onClick={() => setActiveTab('payouts')}
+                    className={cn(
+                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+                        activeTab === 'payouts'
+                            ? "bg-brand-gradient text-white shadow-glow"
+                            : "text-[#A8A29E] hover:text-white hover:bg-white/5"
+                    )}
+                >
+                    <Wallet size={16} />
+                    Solicitações de Repasse
+                    {payouts.filter(p => p.status === 'pending').length > 0 && (
+                        <span className="bg-fluorescent-orange text-black px-2 py-0.5 rounded-full text-[10px] animate-pulse">
+                            {payouts.filter(p => p.status === 'pending').length}
+                        </span>
+                    )}
+                </button>
+            </div>
+
+            {activeTab === 'history' ? (
+                <>
             {/* Header section with stats summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="bg-white/5 border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm">
@@ -671,6 +771,121 @@ const FinanceManagement = () => {
                         <div className="p-4 bg-black/40 border-t border-white/5 flex items-center justify-center">
                             <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest">Guepardo Financial Ledger &copy; 2026 - Auditoria Verificada</span>
                         </div>
+                    </div>
+                </div>
+            )}
+                </>
+            ) : (
+                /* Payouts Management View */
+                <div className="bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl backdrop-blur-md">
+                    <div className="p-8 border-b border-white/10 flex flex-col gap-2">
+                        <h3 className="text-xl font-black text-white flex items-center gap-3">
+                            <Wallet className="text-guepardo-orange w-5 h-5 shadow-glow-orange" />
+                            <span className="text-fluorescent-orange">Solicitações de Repasse (Saque)</span>
+                        </h3>
+                        <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Gerencie os pagamentos aos entregadores parceiros</p>
+                    </div>
+
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-black/20">
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Entregador</th>
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Data Pedido</th>
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Chave PIX</th>
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-right">Valor Bruto</th>
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-center">Status</th>
+                                    <th className="px-8 py-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {payouts.length > 0 ? (
+                                    payouts.map((p) => (
+                                        <tr key={p.id} className="hover:bg-white/5 transition-colors group">
+                                            <td className="px-8 py-5">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-black text-white uppercase">{p.profiles?.full_name || 'Entregador'}</span>
+                                                    <span className="text-[9px] text-[#A8A29E] font-bold">{p.profiles?.phone}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-black text-white">{format(new Date(p.created_at), 'dd/MM/yyyy', { locale: ptBR })}</span>
+                                                    <span className="text-[9px] text-[#A8A29E] font-bold uppercase tracking-widest">{format(new Date(p.created_at), 'HH:mm', { locale: ptBR })}h</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-black text-white bg-white/5 px-3 py-1.5 rounded-lg border border-white/10 w-fit">{p.pix_key}</span>
+                                                    <span className="text-[8px] text-[#A8A29E] font-black uppercase mt-1 tracking-widest">{p.pix_key_type || 'PIX'}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5 text-right">
+                                                <span className="text-sm font-black text-white">R$ {Number(p.amount).toFixed(2)}</span>
+                                            </td>
+                                            <td className="px-8 py-5 text-center">
+                                                <div className={cn(
+                                                    "px-3 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-2",
+                                                    p.status === 'pending' && "bg-amber-500/10 text-amber-500 border border-amber-500/20",
+                                                    p.status === 'completed' && "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20",
+                                                    p.status === 'failed' && "bg-red-500/10 text-red-500 border border-red-500/20",
+                                                    p.status === 'processing' && "bg-blue-500/10 text-blue-500 border border-blue-500/20"
+                                                )}>
+                                                    {p.status === 'pending' && <Clock size={12} />}
+                                                    {p.status === 'completed' && <CheckCircle size={12} />}
+                                                    {p.status === 'failed' && <AlertCircle size={12} />}
+                                                    {p.status === 'processing' && <div className="w-3 h-3 border-2 border-blue-500/20 border-t-blue-500 rounded-full animate-spin"></div>}
+                                                    {p.status === 'pending' ? 'Pendente' : 
+                                                     p.status === 'completed' ? 'Pago' : 
+                                                     p.status === 'failed' ? 'Falhou' : 'Processando'}
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5 text-right">
+                                                {p.status === 'pending' && (
+                                                    <button
+                                                        onClick={() => handleApprovePayout(p.id)}
+                                                        disabled={isProcessing !== null}
+                                                        className="px-4 py-2 bg-brand-gradient text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
+                                                    >
+                                                        {isProcessing === p.id ? (
+                                                            <>
+                                                                <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                                                Processando
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <ArrowDownLeft size={14} />
+                                                                Aprovar e Pagar
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                )}
+                                                {p.status === 'failed' && (
+                                                    <div className="flex flex-col items-end gap-1">
+                                                        <span className="text-[8px] text-red-400 font-bold uppercase">{p.error_message || 'Erro Desconhecido'}</span>
+                                                        <button
+                                                            onClick={() => handleApprovePayout(p.id)}
+                                                            className="text-[9px] text-[#A8A29E] hover:text-white underline font-bold"
+                                                        >
+                                                            Tentar Novamente
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={6} className="px-8 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-4 text-[#A8A29E]">
+                                                <Info size={40} className="opacity-20" />
+                                                <span className="text-xs font-bold uppercase tracking-widest">Nenhuma solicitação de repasse encontrada</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             )}

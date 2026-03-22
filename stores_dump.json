@@ -1,0 +1,26 @@
+[
+  {
+    "id": "26de04b4-6214-4cbb-9a8f-0cbb8b079761",
+    "fantasy_name": "Pilar 4",
+    "is_active": true,
+    "status": "open"
+  },
+  {
+    "id": "1197db1f-036b-4814-9806-41046d84ebdf",
+    "fantasy_name": "MAFS ADVOCACIA",
+    "is_active": true,
+    "status": "fechada"
+  },
+  {
+    "id": "fac5a0c7-8761-4c17-9913-6f8d92369545",
+    "fantasy_name": "Jessica Silva Crochê",
+    "is_active": true,
+    "status": "aberta"
+  },
+  {
+    "id": "5b4ce4be-c8cb-4cee-a0cd-ca6edce71901",
+    "fantasy_name": "Torres & Silva",
+    "is_active": true,
+    "status": "aberta"
+  }
+]
