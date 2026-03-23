@@ -56,6 +56,11 @@ jobs:
           SERVER="${SERVER%/}"
           echo "server=$SERVER" >> $GITHUB_OUTPUT
 
+      - name: 🔍 Explore FTP Structure
+        run: |
+          sudo apt-get install -y lftp
+          lftp -c "set ftp:ssl-allow no; open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ steps.sanitize.outputs.server }}; ls -R" || echo "FTP listing failed"
+
       - name: 📂 Sync files (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
