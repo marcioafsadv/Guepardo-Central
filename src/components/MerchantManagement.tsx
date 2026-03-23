@@ -69,7 +69,8 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
     };
 
     const docs = [
-        { label: 'Documento ID / CNPJ', url: store.document_url, icon: FileText },
+        { label: 'Logo da Empresa', url: store.logo_url, icon: ImageIcon },
+        { label: 'RG do Sócio Responsável', url: store.document_url, icon: FileText },
         { label: 'Contrato Social', url: store.contract_url, icon: ShieldCheck },
         { label: 'Fachada da Loja', url: store.location_photo_url, icon: ImageIcon },
     ];
@@ -86,7 +87,11 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                     <div className="relative group mb-6">
                         <div className="absolute -inset-1 bg-brand-gradient rounded-3xl blur opacity-30 group-hover:opacity-60 transition duration-1000"></div>
                         <div className="w-32 h-32 rounded-3xl bg-guepardo-brown-light border-2 border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
-                            <Store className="w-16 h-16 text-guepardo-orange/50" />
+                            {store.logo_url ? (
+                                <img src={store.logo_url} alt={store.fantasy_name} className="w-full h-full object-cover" />
+                            ) : (
+                                <Store className="w-16 h-16 text-guepardo-orange/50" />
+                            )}
                         </div>
                     </div>
                     
@@ -252,26 +257,47 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                             <h4 className="text-xs font-black text-purple-400/70 uppercase tracking-[0.2em] leading-none">Documentação Fotográfica</h4>
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
-                            {docs.map((doc, i) => (
-                                <div key={i} className="space-y-2 group cursor-pointer transition-all duration-500 hover:scale-105">
-                                    <div className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover:border-guepardo-orange/50">
-                                        {doc.url ? (
-                                            <>
-                                                <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
-                                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
-                                                    <span className="bg-white/10 backdrop-blur-md px-3 py-1.5 rounded-lg text-[8px] font-black text-white border border-white/20 uppercase tracking-widest">Ver Original</span>
+                            {docs.map((doc, i) => {
+                                const isPDF = doc.url?.toLowerCase().endsWith('.pdf');
+                                return (
+                                    <div key={i} className="space-y-2 group cursor-pointer transition-all duration-500 hover:scale-105">
+                                        <div className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover:border-guepardo-orange/50">
+                                            {doc.url ? (
+                                                <>
+                                                    {isPDF ? (
+                                                        <div className="w-full h-full flex flex-col items-center justify-center text-guepardo-orange/40 bg-guepardo-orange/5">
+                                                            <FileText className="w-12 h-12 mb-2" />
+                                                            <span className="text-[8px] font-black uppercase tracking-widest text-[#57534E]">Documento PDF</span>
+                                                        </div>
+                                                    ) : (
+                                                        <img 
+                                                            src={doc.url} 
+                                                            alt={doc.label} 
+                                                            className="w-full h-full object-cover transition-transform group-hover:scale-110" 
+                                                        />
+                                                    )}
+                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all backdrop-blur-sm">
+                                                        <a 
+                                                            href={doc.url} 
+                                                            target="_blank" 
+                                                            rel="noopener noreferrer"
+                                                            className="bg-white/10 border border-white/20 px-4 py-2 rounded-xl text-[10px] font-black text-white hover:bg-white/20 transition-colors uppercase tracking-widest"
+                                                        >
+                                                            {isPDF ? 'Abrir PDF' : 'Ver Original'}
+                                                        </a>
+                                                    </div>
+                                                </>
+                                            ) : (
+                                                <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-bold text-[#57534E] gap-2">
+                                                    <AlertCircle className="w-5 h-5 opacity-20" />
+                                                    NÃO ANEXADO
                                                 </div>
-                                            </>
-                                        ) : (
-                                            <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-bold text-[#57534E] gap-2">
-                                                <AlertCircle className="w-5 h-5 opacity-20" />
-                                                NÃO ANEXADO
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] font-black text-center text-[#A8A29E] tracking-widest uppercase">{doc.label}</p>
                                     </div>
-                                    <p className="text-[10px] font-black text-center text-[#A8A29E] tracking-widest uppercase">{doc.label}</p>
-                                </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     </section>
 
@@ -618,24 +644,33 @@ const MerchantManagement = () => {
 
                                 {/* Header / Identity */}
                                 <div className={cn("flex items-start justify-between gap-4", viewMode === 'list' ? "w-1/3 shrink-0" : "w-full")}>
-                                    <div className="flex flex-col gap-1 min-w-0">
-                                        <h3 className="text-xl font-black text-white truncate leading-tight group-hover:text-guepardo-orange transition-colors">
-                                            {store.fantasy_name || store.company_name}
-                                        </h3>
-                                        <div className="flex flex-wrap items-center gap-2 mt-1">
-                                            <span className="text-[10px] font-black text-[#57534E] tracking-widest uppercase">
-                                                {store.cnpj || store.document || 'SEM DOCUMENTO'}
-                                            </span>
-                                            <span className={cn(
-                                                "text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border",
-                                                store.onboarding_status === 'approved' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
-                                                store.onboarding_status === 'rejected' ? "bg-red-500/10 text-red-400 border-red-500/20" :
-                                                "bg-amber-500/10 text-amber-500 border-amber-500/20"
-                                            )}>
-                                                {store.onboarding_status === 'approved' ? 'VISTORIA OK' :
-                                                 store.onboarding_status === 'rejected' ? 'REPROVADO' :
-                                                 'PENDENTE'}
-                                            </span>
+                                    <div className="flex items-center gap-4 min-w-0">
+                                        <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center shadow-inner">
+                                            {store.logo_url ? (
+                                                <img src={store.logo_url} alt={store.fantasy_name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <Store className="text-guepardo-orange/30 w-6 h-6" />
+                                            )}
+                                        </div>
+                                        <div className="flex flex-col gap-1 min-w-0">
+                                            <h3 className="text-xl font-black text-white truncate leading-tight group-hover:text-guepardo-orange transition-colors">
+                                                {store.fantasy_name || store.company_name}
+                                            </h3>
+                                            <div className="flex flex-wrap items-center gap-2 mt-1">
+                                                <span className="text-[10px] font-black text-[#57534E] tracking-widest uppercase">
+                                                    {store.cnpj || store.document || 'SEM DOCUMENTO'}
+                                                </span>
+                                                <span className={cn(
+                                                    "text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border",
+                                                    store.onboarding_status === 'approved' ? "bg-blue-500/10 text-blue-400 border-blue-500/20" :
+                                                    store.onboarding_status === 'rejected' ? "bg-red-500/10 text-red-400 border-red-500/20" :
+                                                    "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                                )}>
+                                                    {store.onboarding_status === 'approved' ? 'VISTORIA OK' :
+                                                     store.onboarding_status === 'rejected' ? 'REPROVADO' :
+                                                     'PENDENTE'}
+                                                </span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div className="flex items-center gap-2">

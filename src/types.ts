@@ -28,6 +28,7 @@ export interface Store {
     contract_url?: string;
     location_photo_url?: string;
     onboarding_notes?: string;
+    logo_url?: string;
 }
 
 export interface Profile {
