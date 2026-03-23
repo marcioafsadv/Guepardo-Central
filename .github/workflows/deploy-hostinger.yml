@@ -26,9 +26,21 @@ jobs:
         run: |
           npm install --force --legacy-peer-deps
 
+      - name: 🔍 Debug Build Environment
+        run: |
+          echo "VITE_SUPABASE_URL length: ${#VITE_SUPABASE_URL}"
+          echo "VITE_SUPABASE_ANON_KEY length: ${#VITE_SUPABASE_ANON_KEY}"
+          echo "VITE_MAPBOX_TOKEN length: ${#VITE_MAPBOX_TOKEN}"
+          ls -R src/components
+
       - name: 🏗️ Build Project
         run: |
           npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
+          CI: false
 
       - name: ✅ Verify Build Output
         run: |
