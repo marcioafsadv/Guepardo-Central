@@ -7,22 +7,22 @@ import {
 import { startOfDay, subDays } from 'date-fns';
 import { cn } from './lib/utils';
 import { supabase } from './lib/supabase';
-import RealTimeMap from './components/RealTimeMap';
-import LiveTrackingSidebar from './components/Dashboard/LiveTrackingSidebar';
-import ProductivityMatrix from './components/Dashboard/ProductivityMatrix';
-import ExceptionsWidget from './components/Dashboard/ExceptionsWidget';
+import RealTimeMap from './components/RealTimeMap.tsx';
+import LiveTrackingSidebar from './components/Dashboard/LiveTrackingSidebar.tsx';
+import ProductivityMatrix from './components/Dashboard/ProductivityMatrix.tsx';
+import ExceptionsWidget from './components/Dashboard/ExceptionsWidget.tsx';
+import DeliveryManagement from './components/DeliveryManagement.tsx';
+import DriverManagement from './components/DriverManagement.tsx';
+import SettingsView from './components/Settings.tsx';
+import MerchantManagement from './components/MerchantManagement.tsx';
+import FinanceManagement from './components/FinanceManagement.tsx';
+import ChatMultilateral from './components/ChatMultilateral.tsx';
+import type { Delivery } from './types';
 
 const currencyFormatter = new Intl.NumberFormat('pt-BR', {
   style: 'currency',
   currency: 'BRL',
 });
-import DeliveryManagement from './components/DeliveryManagement';
-import DriverManagement from './components/DriverManagement';
-import SettingsView from './components/Settings';
-import MerchantManagement from './components/MerchantManagement';
-import FinanceManagement from './components/FinanceManagement';
-import ChatMultilateral from './components/ChatMultilateral';
-import type { Delivery } from './types';
 
 const App = () => {
   const [activeTab, setActiveTab] = useState('dashboard');
