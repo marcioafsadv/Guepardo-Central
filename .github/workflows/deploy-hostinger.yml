@@ -67,7 +67,7 @@ jobs:
 
       - name: 🧹 Clean remote assets
         run: |
-          lftp -c "set ftp:ssl-allow no; open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ steps.sanitize.outputs.server }}; rm -rf assets; rm index.html; rm VERSION.txt" || echo "Cleanup failed"
+          lftp -c "set ftp:ssl-allow no; open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} ${{ steps.sanitize.outputs.server }}; cd public_html; rm -rf assets; rm index.html; rm VERSION.txt" || echo "Cleanup failed"
 
       - name: 📂 Sync files (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -77,7 +77,7 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           port: 21
           local-dir: ./dist/
-          server-dir: ./
+          server-dir: public_html/
           protocol: ftp
           log-level: verbose
           timeout: 300000
