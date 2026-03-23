@@ -1,3 +1,4 @@
+// Build timestamp: 2026-03-23T10:45:00Z
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Download, Activity, LayoutDashboard, Map as MapIcon,
