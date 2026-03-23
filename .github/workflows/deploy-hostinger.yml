@@ -29,12 +29,21 @@ jobs:
       - name: 🏗️ Build Project
         run: |
           echo "Running type check..."
+          # Explicitly inject secrets during build
+          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }} \
+          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
+          VITE_MAPBOX_TOKEN=${{ secrets.VITE_MAPBOX_TOKEN }} \
           npm run build
+          
           echo "Build Timestamp: $(date)" > dist/VERSION.txt
+          
+          echo "Verifying secret injection in dist..."
+          if grep -q "supabase" dist/assets/*.js; then
+            echo "✅ Supabase URL seems to be injected."
+          else
+            echo "⚠️ WARNING: Supabase string not found in assets. This might be normal if minified, but worth checking."
+          fi
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-          VITE_MAPBOX_TOKEN: ${{ secrets.VITE_MAPBOX_TOKEN }}
           CI: false
 
       - name: ✅ Verify Build Output
@@ -69,7 +78,13 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           port: 21
           local-dir: ./dist/
-          server-dir: test_deploy/
+          server-dir: ./
           protocol: ftp
           log-level: verbose
           timeout: 300000
+          exclude: |
+            **/.git*
+            **/.github*
+            **/node_modules/**
+            .builds/**
+            test_deploy/**
