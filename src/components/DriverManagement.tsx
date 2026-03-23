@@ -12,7 +12,8 @@ import {
     Bike as BikeIcon,
     ShieldCheck,
     FileText,
-    Map as MapIcon
+    Map as MapIcon,
+    CreditCard
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
@@ -36,6 +37,31 @@ interface DriverDetailsModalProps {
     onClose: () => void;
     onStatusUpdate: (status: string) => void;
 }
+
+const BRAZILIAN_BANKS: Record<string, string> = {
+    '001': 'Banco do Brasil',
+    '033': 'Santander/Banespa',
+    '104': 'Caixa Econômica Federal',
+    '237': 'Bradesco',
+    '341': 'Itaú Unibanco',
+    '260': 'Nubank',
+    '077': 'Banco Inter',
+    '422': 'Banco Safra',
+    '633': 'Banco Rendimento',
+    '745': 'Citibank',
+    '212': 'Banco Original',
+    '655': 'Banco Votorantim',
+    '041': 'Banrisul',
+    '197': 'Stone',
+    '290': 'PagSeguro'
+};
+
+const getBankName = (code?: string, name?: string) => {
+    if (name && name !== 'N/A') return name;
+    if (!code || code === 'N/A') return 'N/A';
+    const cleanCode = code.toString().padStart(3, '0');
+    return BRAZILIAN_BANKS[cleanCode] || `Banco (${code})`;
+};
 
 const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsModalProps) => {
     const [updating, setUpdating] = useState(false);
@@ -217,6 +243,35 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
                                 <p className="text-[10px] font-bold text-[#57534E] uppercase">CNH</p>
                                 <p className="text-white font-bold">{driver.vehicles?.cnh_number || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </section>
+                    {/* Payment Info */}
+                    <section className="space-y-6">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-emerald-500/10 rounded-xl flex items-center justify-center text-emerald-400 border border-emerald-500/20 shadow-sm transition-all group-hover:bg-emerald-500/20">
+                                <CreditCard className="w-5 h-5" />
+                            </div>
+                            <h4 className="text-xs font-black text-emerald-400/70 uppercase tracking-[0.2em] leading-none">Dados de Pagamento</h4>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
+                                <p className="text-[10px] font-bold text-[#57534E] uppercase">Banco</p>
+                                <p className="text-white font-bold">{getBankName(driver.bank_code, driver.bank_name)}</p>
+                            </div>
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
+                                <p className="text-[10px] font-bold text-[#57534E] uppercase">Agência / Conta</p>
+                                <p className="text-white font-bold">{driver.bank_agency || 'N/A'} / {driver.bank_account || 'N/A'}</p>
+                            </div>
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
+                                <p className="text-[10px] font-bold text-[#57534E] uppercase">CPF</p>
+                                <p className="text-white font-bold">{driver.cpf || 'N/A'}</p>
+                            </div>
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
+                                <p className="text-[10px] font-bold text-[#57534E] uppercase">Chave PIX</p>
+                                <p className={cn("font-bold", driver.pix_key ? "text-white" : "text-red-400/50 italic")}>
+                                    {driver.pix_key || 'NÃO INFORMADO'}
+                                </p>
                             </div>
                         </div>
                     </section>

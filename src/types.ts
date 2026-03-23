@@ -47,6 +47,11 @@ export interface Profile {
     cpf?: string;
     gender?: string;
     pix_key?: string;
+    bank_code?: string;
+    bank_name?: string;
+    bank_agency?: string;
+    bank_account?: string;
+    bank_account_type?: string;
     work_city?: string;
     vehicle_type?: string;
     vehicle_model?: string;
