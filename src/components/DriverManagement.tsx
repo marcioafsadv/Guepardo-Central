@@ -23,6 +23,7 @@ import { format } from 'date-fns';
 interface DriverWithDetails extends Profile {
     addresses?: any;
     vehicles?: any;
+    bank_accounts?: any;
     stats?: {
         completed: number;
         accepted: number;
@@ -257,11 +258,11 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
                                 <p className="text-[10px] font-bold text-[#57534E] uppercase">Banco</p>
-                                <p className="text-white font-bold">{getBankName(driver.bank_code, driver.bank_name)}</p>
+                                <p className="text-white font-bold">{getBankName(driver.bank_accounts?.bank_code || driver.bank_code, driver.bank_accounts?.bank_name || driver.bank_name)}</p>
                             </div>
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
                                 <p className="text-[10px] font-bold text-[#57534E] uppercase">Agência / Conta</p>
-                                <p className="text-white font-bold">{driver.bank_agency || 'N/A'} / {driver.bank_account || 'N/A'}</p>
+                                <p className="text-white font-bold">{driver.bank_accounts?.agency || driver.bank_agency || 'N/A'} / {driver.bank_accounts?.account_number || driver.bank_account || 'N/A'}</p>
                             </div>
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
                                 <p className="text-[10px] font-bold text-[#57534E] uppercase">CPF</p>
@@ -269,8 +270,8 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                             </div>
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
                                 <p className="text-[10px] font-bold text-[#57534E] uppercase">Chave PIX</p>
-                                <p className={cn("font-bold", driver.pix_key ? "text-white" : "text-red-400/50 italic")}>
-                                    {driver.pix_key || 'NÃO INFORMADO'}
+                                <p className={cn("font-bold", (driver.bank_accounts?.pix_key || driver.pix_key) ? "text-white" : "text-red-400/50 italic")}>
+                                    {driver.bank_accounts?.pix_key || driver.pix_key || 'NÃO INFORMADO'}
                                 </p>
                             </div>
                         </div>
@@ -350,17 +351,20 @@ const DriverManagement = () => {
                 { data: profiles, error: profError },
                 { data: vehicles, error: vehError },
                 { data: addresses, error: addrError },
+                { data: bankAccounts, error: bankError },
                 { data: deliveriesRaw, error: delError }
             ] = await Promise.all([
                 supabase.from('profiles').select('*').order('created_at', { ascending: false }),
                 supabase.from('vehicles').select('*'),
                 supabase.from('addresses').select('*'),
+                supabase.from('bank_accounts').select('*'),
                 supabase.from('deliveries').select('driver_id, status, accepted_at').not('driver_id', 'is', null)
             ]);
 
             if (profError) throw profError;
             if (vehError) console.error('Error fetching vehicles:', vehError);
             if (addrError) console.error('Error fetching addresses:', addrError);
+            if (bankError) console.error('Error fetching bank accounts:', bankError);
             if (delError) console.error('Error fetching delivery stats:', delError);
 
             // Aggregate stats
@@ -381,6 +385,7 @@ const DriverManagement = () => {
             const mappedDrivers = (profiles || []).map((d: any) => {
                 const driverVehicles = (vehicles || []).filter(v => v.user_id === d.id);
                 const driverAddresses = (addresses || []).filter(a => a.user_id === d.id);
+                const driverBank = (bankAccounts || []).find(b => b.user_id === d.id);
 
                 const vehicle = driverVehicles[0] || {
                     user_id: d.id,
@@ -394,6 +399,7 @@ const DriverManagement = () => {
                     ...d,
                     vehicles: vehicle,
                     addresses: driverAddresses[0] || null,
+                    bank_accounts: driverBank || null,
                     stats: statsMap[d.id] || { completed: 0, accepted: 0, cancelled: 0, active: 0, rejected: 0 }
                 };
             });
@@ -442,6 +448,13 @@ const DriverManagement = () => {
                 .eq('user_id', driver.id)
                 .maybeSingle();
 
+            // Fetch additional details from 'bank_accounts' table
+            const { data: bankAccount } = await supabase
+                .from('bank_accounts')
+                .select('*')
+                .eq('user_id', driver.id)
+                .maybeSingle();
+
             // Synthesis logic with fallbacks
             const synthesizedAddress = address || {
                 user_id: driver.id,
@@ -465,7 +478,8 @@ const DriverManagement = () => {
             setSelectedDriver(prev => (prev && prev.id === driver.id) ? {
                 ...prev,
                 addresses: synthesizedAddress,
-                vehicles: synthesizedVehicle
+                vehicles: synthesizedVehicle,
+                bank_accounts: bankAccount
             } : prev);
         } catch (err) {
             console.error('Error fetching driver details:', err);
