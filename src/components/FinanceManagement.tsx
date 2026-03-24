@@ -211,13 +211,13 @@ const FinanceManagement = () => {
 
         const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Hist├│rico Financeiro");
+        XLSX.utils.book_append_sheet(wb, ws, "Histórico Financeiro");
         XLSX.writeFile(wb, `guepardo_financeiro_${format(new Date(), 'dd_MM_yyyy')}.xlsx`);
     };
 
     const handleExportPDF = () => {
         const doc = new jsPDF();
-        const head = [['ID', 'Lojista', 'Data/Hora', 'Vlr Lojista', 'P├íg Entregador', 'Taxa (12.5%)']];
+        const head = [['ID', 'Lojista', 'Data/Hora', 'Vlr Lojista', 'Pág Entregador', 'Taxa (12.5%)']];
         const body = filteredDeliveries.map(d => [
             d.items?.displayId || d.id.slice(-6).toUpperCase(),
             d.store_name,
@@ -227,7 +227,7 @@ const FinanceManagement = () => {
             `R$ ${d.calculated_platform_fee?.toFixed(2) || '0.00'}`
         ]);
 
-        doc.text("Guepardo - Relat├│rio Financeiro", 14, 15);
+        doc.text("Guepardo - Relatório Financeiro", 14, 15);
         autoTable(doc, {
             head: head,
             body: body,
@@ -246,29 +246,43 @@ const FinanceManagement = () => {
         try {
             setIsProcessing(payoutId);
             
-            // Aqui chamaremos a Edge Function process-payout futuramente
-            // Por enquanto, vamos simular a chamada e atualizar o status no banco
-            
+            const session = await supabase.auth.getSession();
+            const token = session.data.session?.access_token;
+
             const response = await fetch('https://eviukbluwrwcblwhkzwz.supabase.co/functions/v1/process-payout', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+                    'Authorization': `Bearer ${token}`
                 },
                 body: JSON.stringify({ payoutId })
             });
 
+            const result = await response.json();
+
             if (!response.ok) {
-                const errData = await response.json();
-                throw new Error(errData.error || 'Erro ao processar pagamento');
+                throw new Error(result.error || result.message || 'Erro ao processar pagamento');
             }
 
-            alert('Pagamento processado com sucesso via Mercado Pago!');
+            // Sucesso
+            setPayouts(prev => prev.map(p => 
+                p.id === payoutId 
+                    ? { ...p, status: 'completed', processed_at: new Date().toISOString() } 
+                    : p
+            ));
+            
+            // Recarrega dados para manter tudo atualizado
             void fetchPayouts();
             void fetchFinanceData();
+
         } catch (err: any) {
             console.error('Error approving payout:', err);
-            alert(`Falha ao processar: ${err.message}`);
+            // Atualiza status local para 'failed' para mostrar o erro na UI
+            setPayouts(prev => prev.map(p => 
+                p.id === payoutId 
+                    ? { ...p, status: 'failed', error_message: err.message } 
+                    : p
+            ));
         } finally {
             setIsProcessing(null);
         }
@@ -288,7 +302,7 @@ const FinanceManagement = () => {
                     )}
                 >
                     <BarChart3 size={16} />
-                    Hist├│rico de Corridas
+                    Histórico de Corridas
                 </button>
                 <button
                     onClick={() => setActiveTab('payouts')}
@@ -300,7 +314,7 @@ const FinanceManagement = () => {
                     )}
                 >
                     <Wallet size={16} />
-                    Solicita├º├Áes de Repasse
+                    Solicitações de Repasse
                     {payouts.filter(p => p.status === 'pending').length > 0 && (
                         <span className="bg-fluorescent-orange text-black px-2 py-0.5 rounded-full text-[10px] animate-pulse">
                             {payouts.filter(p => p.status === 'pending').length}
@@ -316,7 +330,7 @@ const FinanceManagement = () => {
                 <div className="bg-white/5 border border-white/10 p-8 rounded-[2rem] relative overflow-hidden group hover:bg-white/10 transition-all duration-500 shadow-2xl backdrop-blur-sm">
                     <div className="absolute -right-4 -top-4 w-24 h-24 bg-emerald-500 opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
                     <div className="flex items-center justify-between mb-6">
-                        <span className="text-[10px] text-[#A8A29E] font-black uppercase tracking-widest">Volume de Transa├º├úo</span>
+                        <span className="text-[10px] text-[#A8A29E] font-black uppercase tracking-widest">Volume de Transação</span>
                         <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20 shadow-glow-emerald transition-all group-hover:scale-110">
                             <TrendingUp className="w-5 h-5" />
                         </div>
@@ -342,7 +356,7 @@ const FinanceManagement = () => {
                         <span className="text-3xl font-black text-fluorescent-orange tracking-tighter">R$ {platformTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                         <div className="flex items-center gap-1.5 text-guepardo-orange">
                             <ArrowUpRight size={14} className="font-bold" />
-                            <span className="text-[9px] font-black uppercase tracking-widest">Receita L├¡quida App</span>
+                            <span className="text-[9px] font-black uppercase tracking-widest">Receita Líquida App</span>
                         </div>
                     </div>
                 </div>
@@ -368,13 +382,13 @@ const FinanceManagement = () => {
             {/* Filter and Table section */}
             <div className="bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl backdrop-blur-md">
                 <div className="p-8 border-b border-white/10 flex flex-col gap-6">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6">
                         <div className="flex flex-col gap-1">
                             <h3 className="text-xl font-black text-white flex items-center gap-3">
                                 <Calendar className="text-guepardo-orange w-5 h-5 shadow-glow-orange" />
-                                <span className="text-fluorescent-orange">Hist├│rico Financeiro</span>
+                                <span className="text-fluorescent-orange">Histórico Financeiro</span>
                             </h3>
-                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Relat├│rio detalhado de transa├º├Áes</p>
+                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Relatório detalhado de transações</p>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-4">
@@ -382,7 +396,7 @@ const FinanceManagement = () => {
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8A29E] group-focus-within:text-guepardo-orange transition-colors" />
                                 <input
                                     type="text"
-                                    placeholder="Buscar transa├º├úo..."
+                                    placeholder="Buscar transação..."
                                     className="pl-10 pr-4 py-2.5 bg-black/20 border border-white/10 rounded-xl text-sm focus:outline-none focus:border-guepardo-orange/50 transition-all w-full md:w-64 font-bold text-white"
                                     value={searchTerm}
                                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -414,8 +428,8 @@ const FinanceManagement = () => {
                         </div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-4 bg-black/20 p-2 rounded-2xl border border-white/5">
-                        <div className="flex items-center gap-2 pr-4 border-r border-white/10">
+                    <div className="flex flex-wrap items-center gap-4 bg-black/20 p-2 rounded-2xl border border-white/5 overflow-hidden">
+                        <div className="flex items-center gap-2 pr-4 border-r border-white/10 overflow-x-auto no-scrollbar">
                             {[
                                 { id: 'all', label: 'Tudo' },
                                 { id: 'today', label: 'Hoje' },
@@ -427,7 +441,7 @@ const FinanceManagement = () => {
                                     key={filter.id}
                                     onClick={() => setDateFilter(filter.id as 'all' | 'today' | '7days' | '30days' | 'custom')}
                                     className={cn(
-                                        "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all",
+                                        "px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap",
                                         dateFilter === filter.id
                                             ? "bg-brand-gradient text-white shadow-glow"
                                             : "text-[#A8A29E] hover:text-white hover:bg-white/5"
@@ -441,7 +455,7 @@ const FinanceManagement = () => {
                         {dateFilter === 'custom' && (
                             <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-2 duration-300">
                                 <div className="flex flex-col gap-1">
-                                    <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest ml-1">In├¡cio</span>
+                                    <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest ml-1">Início</span>
                                     <input
                                         type="date"
                                         value={startDate}
@@ -471,7 +485,7 @@ const FinanceManagement = () => {
                                 <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Lojista</th>
                                 <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Data / Hora</th>
                                 <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-right">Valor Lojista</th>
-                                <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-right">P├íg. Entregador</th>
+                                <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-right">Pág. Entregador</th>
                                 <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-right">Taxa (12.5%)</th>
                                 <th className="px-8 py-4"></th>
                             </tr>
@@ -534,7 +548,7 @@ const FinanceManagement = () => {
                             ) : (
                                 <tr>
                                     <td colSpan={7} className="px-8 py-20 text-center text-[#A8A29E] font-bold uppercase text-xs italic">
-                                        Nenhuma transa├º├úo encontrada
+                                        Nenhuma transação encontrada
                                     </td>
                                 </tr>
                             )}
@@ -553,7 +567,7 @@ const FinanceManagement = () => {
                                 <BarChart3 className="text-guepardo-orange w-5 h-5 shadow-glow-orange" />
                                 <span>Volume de Vendas x Receita</span>
                             </h3>
-                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Fluxo financeiro dos ├║ltimos 15 pedidos</p>
+                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Fluxo financeiro dos últimos 15 pedidos</p>
                         </div>
                     </div>
                     <div className="h-[300px] w-full">
@@ -708,7 +722,7 @@ const FinanceManagement = () => {
                                     </div>
 
                                     <div className="bg-white/5 border border-white/5 p-6 rounded-3xl">
-                                        <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest mb-4 block">Log├¡stica</span>
+                                        <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest mb-4 block">Logística</span>
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                                 <div className="p-2 bg-white/10 text-white rounded-lg">
@@ -716,7 +730,7 @@ const FinanceManagement = () => {
                                                 </div>
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] font-black text-white">{selectedDelivery.delivery_distance?.toFixed(2)} KM</span>
-                                                    <span className="text-[8px] text-[#A8A29E] font-bold">Dist├óncia Percorrida</span>
+                                                    <span className="text-[8px] text-[#A8A29E] font-bold">Distância Percorrida</span>
                                                 </div>
                                             </div>
                                             <div className="text-right">
@@ -730,7 +744,7 @@ const FinanceManagement = () => {
                                 {/* Right Column: Financial Breakdown */}
                                 <div className="space-y-6">
                                     <div className="bg-black/40 border border-white/5 p-6 rounded-3xl shadow-inner">
-                                        <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest mb-4 block">Divis├úo de Valores</span>
+                                        <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest mb-4 block">Divisão de Valores</span>
                                         <div className="space-y-4">
                                             <div className="flex items-center justify-between py-2 border-b border-white/5">
                                                 <span className="text-[10px] font-bold text-[#A8A29E]">Valor Total Pago</span>
@@ -746,7 +760,7 @@ const FinanceManagement = () => {
                                             <div className="flex items-center justify-between pt-4">
                                                 <div className="flex items-center gap-2">
                                                     <div className="w-2 h-2 rounded-full bg-guepardo-orange shadow-glow"></div>
-                                                    <span className="text-[10px] font-black text-guepardo-orange uppercase">L├¡quido Central</span>
+                                                    <span className="text-[10px] font-black text-guepardo-orange uppercase">Líquido Central</span>
                                                 </div>
                                                 <span className="text-2xl font-black text-white px-5 py-2 rounded-full border border-[#FF6B00] shadow-glow-orange bg-white/5">R$ {selectedDelivery.calculated_platform_fee?.toFixed(2)}</span>
                                             </div>
@@ -780,7 +794,7 @@ const FinanceManagement = () => {
                     <div className="p-8 border-b border-white/10 flex flex-col gap-2">
                         <h3 className="text-xl font-black text-white flex items-center gap-3">
                             <Wallet className="text-guepardo-orange w-5 h-5 shadow-glow-orange" />
-                            <span className="text-fluorescent-orange">Solicita├º├Áes de Repasse (Saque)</span>
+                            <span className="text-fluorescent-orange">Solicitações de Repasse (Saque)</span>
                         </h3>
                         <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Gerencie os pagamentos aos entregadores parceiros</p>
                     </div>
@@ -878,7 +892,7 @@ const FinanceManagement = () => {
                                         <td colSpan={6} className="px-8 py-20 text-center">
                                             <div className="flex flex-col items-center gap-4 text-[#A8A29E]">
                                                 <Info size={40} className="opacity-20" />
-                                                <span className="text-xs font-bold uppercase tracking-widest">Nenhuma solicita├º├úo de repasse encontrada</span>
+                                                <span className="text-xs font-bold uppercase tracking-widest">Nenhuma solicitação de repasse encontrada</span>
                                             </div>
                                         </td>
                                     </tr>
