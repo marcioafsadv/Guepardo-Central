@@ -1,3 +1,4 @@
+# Trigger deployment - Secrets updated
 name: Deploy to Hostinger
 
 on:
