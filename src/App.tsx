@@ -61,6 +61,10 @@ const App = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    document.body.className = `theme-${theme}`;
+  }, [theme]);
+
   const handleLogin = async () => {
     try {
       const { error } = await supabase.auth.signInWithOAuth({
