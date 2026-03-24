@@ -29,10 +29,14 @@ jobs:
 
       - name: 🏗️ Build Project
         run: |
-          echo "Generating .env file..."
-          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
-          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
-          echo "VITE_MAPBOX_TOKEN=${{ secrets.VITE_MAPBOX_TOKEN }}" >> .env
+          echo "Generating .env file for build..."
+          # Use single quotes to escape special characters in secrets
+          echo "VITE_SUPABASE_URL='${{ secrets.VITE_SUPABASE_URL }}'" > .env
+          echo "VITE_SUPABASE_ANON_KEY='${{ secrets.VITE_SUPABASE_ANON_KEY }}'" >> .env
+          echo "VITE_MAPBOX_TOKEN='${{ secrets.VITE_MAPBOX_TOKEN }}'" >> .env
+          
+          echo "Verifying .env structure (keys only)..."
+          cut -d'=' -f1 .env
           
           echo "Running build..."
           npm run build
@@ -40,12 +44,16 @@ jobs:
           echo "Build Timestamp: $(date)" > dist/VERSION.txt
           
           echo "Verifying secret injection in dist..."
-          # Check for part of the Supabase URL to verify injection
-          if grep -q "supabase.co" dist/assets/*.js; then
-            echo "✅ Supabase URL found in built assets."
+          # Look for the start of the Supabase URL in any JS file in dist
+          if grep -r "eviukbluwrwc" dist/assets/; then
+            echo "✅ Supabase URL partial match found in built assets."
           else
-            echo "⚠️ WARNING: Supabase URL NOT found in assets. Check secrets and build logs."
+            echo "❌ ERROR: Supabase URL NOT found in assets. Build might be using empty values."
+            # Don't fail the build here yet, but log it clearly
           fi
+          
+          echo "Checking for 'void 0' in suspicious places..."
+          grep -r "void 0" dist/assets/ | head -n 20 || true
         env:
           CI: false
 
