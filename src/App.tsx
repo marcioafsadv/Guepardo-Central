@@ -26,6 +26,8 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 });
 
 const App = () => {
+  const [session, setSession] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('guepardo-theme') as 'dark' | 'light') || 'dark';
@@ -37,12 +39,47 @@ const App = () => {
     stores: any[];
     deliveries: any[];
   }>({ drivers: [], stores: [], deliveries: [] });
-  
+
   // New Filters
   const [dateFilter, setDateFilter] = useState<'today' | '7d' | '30d' | 'all'>('today');
   const [merchantSearch, setMerchantSearch] = useState('');
   const [driverSearch, setDriverSearch] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    // Check current session
+    void supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setLoading(false);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async () => {
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: window.location.origin
+        }
+      });
+      if (error) throw error;
+    } catch (error: any) {
+      alert('Erro ao entrar com Google: ' + error.message);
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    setSession(null);
+    setActiveTab('dashboard');
+  };
 
   const fetchStats = useCallback(async () => {
     try {
@@ -160,7 +197,6 @@ const App = () => {
 
   useEffect(() => {
     localStorage.setItem('guepardo-theme', theme);
-    document.body.className = `theme-${theme}`;
   }, [theme]);
 
 
@@ -173,6 +209,50 @@ const App = () => {
     { id: 'analytics', label: 'Relatórios Financeiros', icon: TrendingUp },
     { id: 'settings', label: 'Configurações', icon: Settings },
   ];
+
+  if (loading) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-chocolate-panel text-white">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-guepardo-orange border-t-transparent rounded-full animate-spin"></div>
+          <p className="font-bold tracking-widest uppercase text-xs">Carregando Guepardo Central...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-chocolate-panel text-white relative overflow-hidden">
+        {/* Background Effects */}
+        <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none">
+           <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-guepardo-orange rounded-full blur-[120px] animate-pulse"></div>
+           <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-chocolate-brown rounded-full blur-[120px] animate-pulse delay-1000"></div>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 p-12 rounded-[2.5rem] backdrop-blur-xl shadow-2xl flex flex-col items-center gap-8 max-w-md w-full relative z-10">
+          <img src="/cheetah-scooter.png" alt="Guepardo" className="h-24 w-auto drop-shadow-glow" />
+          <div className="text-center">
+            <h1 className="text-4xl font-black italic tracking-tighter shadow-sm mb-1">GUEPARDO</h1>
+            <p className="text-guepardo-orange font-bold text-xs tracking-[0.3em]">CENTRAL DE LIDERANÇA</p>
+          </div>
+          
+          <div className="w-full space-y-4">
+            <button 
+              onClick={handleLogin}
+              className="w-full py-4 bg-white text-black font-black rounded-2xl flex items-center justify-center gap-3 hover:bg-gray-200 transition-all shadow-glow-intense active:scale-95"
+            >
+              <img src="https://www.google.com/favicon.ico" alt="Google" className="w-5 h-5" />
+              Entrar com Google
+            </button>
+            <p className="text-[#A8A29E] text-[10px] text-center font-bold uppercase tracking-widest">
+              Acesso restrito a administradores autorizados.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen w-full text-[#E5E5E5] font-sans">
@@ -212,7 +292,10 @@ const App = () => {
         </nav>
 
         <div className="p-4 mt-auto border-t border-white/10 bg-black/20 flex justify-center">
-          <button className="w-12 h-12 flex items-center justify-center text-red-500 hover:bg-red-500/10 rounded-xl transition-all group relative overflow-visible">
+          <button 
+            onClick={handleLogout}
+            className="w-12 h-12 flex items-center justify-center text-red-500 hover:bg-red-500/10 rounded-xl transition-all group relative overflow-visible"
+          >
             <LogOut className="w-5 h-5 shrink-0 group-hover:rotate-12 transition-transform" />
 
             {/* Tooltip */}

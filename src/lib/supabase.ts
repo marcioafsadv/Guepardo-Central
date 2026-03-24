@@ -8,5 +8,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
     throw new Error('Supabase URL or Anon Key is missing');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storageKey: 'guepardo-central-auth',
+        storage: window.localStorage
+    }
+});
 
