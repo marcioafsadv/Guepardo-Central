@@ -246,8 +246,13 @@ const FinanceManagement = () => {
         try {
             setIsProcessing(payoutId);
             
-            const session = await supabase.auth.getSession();
-            const token = session.data.session?.access_token;
+            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+            
+            if (sessionError || !session) {
+                throw new Error('Sessão expirada. Por favor, faça login novamente.');
+            }
+
+            const token = session.access_token;
 
             const response = await fetch('https://eviukbluwrwcblwhkzwz.supabase.co/functions/v1/process-payout', {
                 method: 'POST',

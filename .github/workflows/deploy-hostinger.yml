@@ -76,11 +76,12 @@ jobs:
           ping -c 3 $HOST || echo "Ping failed (common in CI, but worth noting)"
           nslookup $HOST || echo "DNS lookup failed!"
 
-      - name: 🧹 Clean remote assets
-        run: |
-          # Use hostname extracted from secret
-          HOST=$(echo "${{ secrets.FTP_SERVER }}" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
-          lftp -c "set ftp:ssl-allow no; open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} $HOST; cd public_html; rm -rf assets; rm index.html; rm VERSION.txt" || echo "Cleanup failed"
+      # Step removed to prevent 550 errors on Hostinger FTP
+      # - name: 🧹 Clean remote assets
+      #   run: |
+      #     # Use hostname extracted from secret
+      #     HOST=$(echo "${{ secrets.FTP_SERVER }}" | sed -e 's|^[^/]*//||' -e 's|/.*$||')
+      #     lftp -c "set ftp:ssl-allow no; open -u ${{ secrets.FTP_USERNAME }},${{ secrets.FTP_PASSWORD }} $HOST; cd public_html; rm -rf assets; rm index.html; rm VERSION.txt" || echo "Cleanup failed"
 
       - name: 📂 Sync files (FTP)
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
