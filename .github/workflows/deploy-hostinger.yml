@@ -29,20 +29,22 @@ jobs:
 
       - name: 🏗️ Build Project
         run: |
-          echo "Running type check..."
-          # Explicitly inject secrets during build
-          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }} \
-          VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }} \
-          VITE_MAPBOX_TOKEN=${{ secrets.VITE_MAPBOX_TOKEN }} \
+          echo "Generating .env file..."
+          echo "VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}" > .env
+          echo "VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}" >> .env
+          echo "VITE_MAPBOX_TOKEN=${{ secrets.VITE_MAPBOX_TOKEN }}" >> .env
+          
+          echo "Running build..."
           npm run build
           
           echo "Build Timestamp: $(date)" > dist/VERSION.txt
           
           echo "Verifying secret injection in dist..."
-          if grep -q "supabase" dist/assets/*.js; then
-            echo "✅ Supabase URL seems to be injected."
+          # Check for part of the Supabase URL to verify injection
+          if grep -q "supabase.co" dist/assets/*.js; then
+            echo "✅ Supabase URL found in built assets."
           else
-            echo "⚠️ WARNING: Supabase string not found in assets. This might be normal if minified, but worth checking."
+            echo "⚠️ WARNING: Supabase URL NOT found in assets. Check secrets and build logs."
           fi
         env:
           CI: false
