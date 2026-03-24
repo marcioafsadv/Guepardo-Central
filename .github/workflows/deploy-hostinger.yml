@@ -1,4 +1,4 @@
-# Trigger deployment - Secrets updated
+# Trigger deployment - Supabase secrets updated
 name: Deploy to Hostinger
 
 on:
