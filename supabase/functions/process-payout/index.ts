@@ -71,7 +71,13 @@ serve(async (req) => {
 
     const idempotencyKey = `payout_${payoutId}_${Date.now()}`
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
-    const pixKey = (payout.pix_key || payout.withdraw_info || '').trim()
+    let pixKey = (payout.pix_key || payout.withdraw_info || '').trim().replace(/[^\d\w@.-]/g, '')
+
+    // Auto-formatação para chaves de Telefone (Faltando +55)
+    if (/^\d{10,11}$/.test(pixKey)) {
+      console.log(`Detectada chave de telefone sem prefixo. Formatando de ${pixKey} para +55${pixKey}`)
+      pixKey = `+55${pixKey}`
+    }
 
     console.log(`Tentando Transferência Automática: R$ ${amount} para ${pixKey}`)
 
