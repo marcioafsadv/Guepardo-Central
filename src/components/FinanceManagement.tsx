@@ -906,6 +906,15 @@ const FinanceManagement = () => {
                                                             )}
                                                         </button>
                                                     )}
+                                                    {p.status === 'processing' && (
+                                                        <button
+                                                            onClick={() => handleResetPayoutStatus(p.id)}
+                                                            className="px-3 py-1.5 bg-white/5 hover:bg-white/10 text-[#A8A29E] hover:text-white text-[8px] font-black uppercase tracking-widest rounded-lg border border-white/10 transition-all flex items-center gap-1"
+                                                        >
+                                                            <X size={10} />
+                                                            Reiniciar Status
+                                                        </button>
+                                                    )}
                                                     {(p.status === 'completed' || p.status === 'failed') && (
                                                         <div className="flex flex-col items-end gap-1">
                                                             {p.status === 'failed' && (

@@ -7,150 +7,131 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
-  }
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('URL_SUPABASE') || ''
+  const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  const supabaseClient = createClient(supabaseUrl, supabaseKey)
+  
+  let currentPayoutId = null
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('URL_SUPABASE') || ''
-    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-    const supabaseClient = createClient(supabaseUrl, supabaseKey)
-
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) throw new Error('Header de autorização ausente')
 
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
-    if (userError || !user) throw new Error(`Usuário não autenticado: ${userError?.message}`)
+    if (userError || !user) throw new Error(`Não autenticado: ${userError?.message}`)
 
     const { payoutId } = await req.json()
-    console.log(`Iniciando processamento do repasse: ${payoutId}`)
+    currentPayoutId = payoutId
+    console.log(`[START] Payout ID: ${payoutId}`)
 
+    // 1. Marcar como processando no banco para evitar cliques duplos
+    await supabaseClient.from('withdrawal_requests').update({ status: 'processing' }).eq('id', payoutId)
+
+    // 2. Buscar dados (com timeout manual de 5s para o banco)
     const { data: payout, error: payoutError } = await supabaseClient
       .from('withdrawal_requests')
-      .select(`
-        *,
-        profiles:user_id ( full_name, phone, cpf )
-      `)
+      .select('*, profiles:user_id(full_name, phone, cpf)')
       .eq('id', payoutId)
       .single()
 
-    if (payoutError || !payout) throw new Error('Solicitação de repasse não encontrada')
+    if (payoutError || !payout) throw new Error('Repasse não encontrado ou erro de permissão.')
 
     const MP_ACCESS_TOKEN = Deno.env.get('MP_PAYOUT_ACCESS_TOKEN') || Deno.env.get('MP_ACCESS_TOKEN')
-    if (!MP_ACCESS_TOKEN) throw new Error('Credencial MP_ACCESS_TOKEN não configurada.')
+    if (!MP_ACCESS_TOKEN) throw new Error('Token MP não configurado.')
 
-    // 6ª Via: Auto-identificar o Collector ID do usuário
-    let collectorId = "";
+    // 3. Auto-ID do Collector (Com Timeout de 5s)
+    let collectorId = ""
     try {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 5000)
       const meRes = await fetch('https://api.mercadopago.com/v1/me', {
-        headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` }
-      });
-      const meData = await meRes.json();
-      collectorId = String(meData.id);
-      console.log(`Collector ID identificado: ${collectorId}`);
-    } catch (e) {
-      console.log("Aviso: Não foi possível identificar o Collector ID");
-    }
+        headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` },
+        signal: controller.signal
+      })
+      clearTimeout(timeoutId)
+      const meData = await meRes.json()
+      collectorId = String(meData.id)
+      console.log(`Collector ID: ${collectorId}`)
+    } catch (e) { console.log("Aviso: Falha no Auto-ID") }
 
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
     const rawKey = (payout.pix_key || payout.withdraw_info || '').trim()
     const cleanKey = rawKey.replace(/[^\d\w@.-]/g, '')
-    
-    let keyType = 'email'
-    if (cleanKey.includes('@')) keyType = 'email'
-    else if (cleanKey.length === 11 && /^\d+$/.test(cleanKey)) keyType = 'cpf'
-    else if (cleanKey.length === 14) keyType = 'cnpj'
-    else if (cleanKey.length > 11 && /^\d+$/.test(cleanKey)) keyType = 'phone'
-    else keyType = 'evp'
-
-    const formattedPhone = keyType === 'phone' && !cleanKey.startsWith('+') ? `+55${cleanKey}` : cleanKey
+    const formattedPhone = (cleanKey.length >= 10 && /^\d+$/.test(cleanKey) && !cleanKey.startsWith('+')) ? `+55${cleanKey}` : cleanKey
 
     const commonHeaders: any = {
       'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
       'Content-Type': 'application/json',
       'X-Idempotency-Key': `payout-${payoutId}-${Date.now()}`
-    };
-    if (collectorId) commonHeaders['X-Collector-Id'] = collectorId;
+    }
+    if (collectorId) commonHeaders['X-Collector-Id'] = collectorId
 
     const attempts = [
-      // Strategy 1: Payouts v1 com Collector ID (A via mais oficial)
       {
         url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'MP-PAYOUT-WITH-ID',
+        label: 'STRAT-PAYOUT',
         method: 'POST',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          payout_info: { type: 'pix', value: cleanKey }
-        }
+        payload: { amount, payment_method_id: 'pix', payout_info: { type: 'pix', value: cleanKey } }
       },
-      // Strategy 2: Disbursements (Repasses Híbridos)
-      {
-        url: 'https://api.mercadopago.com/v1/disbursements',
-        label: 'MP-DISBURSEMENTS',
-        method: 'POST',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          pix_key: cleanKey,
-          description: `Repasse ${payoutId}`
-        }
-      },
-      // Strategy 3: Transfers (Modo Carteira com cabeçalho ID)
       {
         url: 'https://api.mercadopago.com/v1/transfers',
-        label: 'MP-TRANSFERS-WITH-ID',
+        label: 'STRAT-TRANSFER',
         method: 'POST',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          pix_key: formattedPhone,
-          description: "Repasse Guepardo"
-        }
+        payload: { amount, payment_method_id: 'pix', pix_key: formattedPhone }
       }
     ]
 
-    let finalResponse = null;
-    let errorDetails: string[] = [];
+    let finalResponse = null
+    let errorDetails: string[] = []
 
     for (const attempt of attempts) {
+      console.log(`Tentando ${attempt.label}...`)
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s per attempt
+      
       try {
         const res = await fetch(attempt.url, {
           method: attempt.method,
           headers: commonHeaders,
-          body: JSON.stringify(attempt.payload)
+          body: JSON.stringify(attempt.payload),
+          signal: controller.signal
         })
-
+        clearTimeout(timeoutId)
         const data = await res.json()
-        const isActuallyPaid = res.ok && (data.status === 'approved' || data.status === 'completed' || data.status === 'success')
+        const isPaid = res.ok && (data.status === 'approved' || data.status === 'completed' || data.status === 'success')
 
-        if (isActuallyPaid) {
+        if (isPaid) {
           finalResponse = data
           break
         } else {
-          errorDetails.push(`[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`)
-          if (res.status === 401 || res.status === 403) break
+          errorDetails.push(`${attempt.label}: ${res.status}`)
         }
       } catch (err: any) {
-        errorDetails.push(`[${attempt.label}] Erro: ${err.message}`)
+        errorDetails.push(`${attempt.label}: Timeout/Erro`)
       }
     }
 
     if (finalResponse) {
-      await supabaseClient.from('withdrawal_requests')
-        .update({ status: 'completed', processed_at: new Date().toISOString() })
-        .eq('id', payoutId)
-      return new Response(JSON.stringify({ success: true, data: finalResponse }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+      await supabaseClient.from('withdrawal_requests').update({ status: 'completed', processed_at: new Date().toISOString() }).eq('id', payoutId)
+      return new Response(JSON.stringify({ success: true, data: finalResponse }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     } else {
+      // Falha automática -> Ativar Manual Fallback
       return new Response(JSON.stringify({ 
         success: true, 
         manual_required: true, 
         error: errorDetails.join(' | '),
-        message: "Falha técnica no Mercado Pago. Por favor realize o PIX manualmente.",
-        payout_details: { pix_key: rawKey, amount: amount, name: payout.profiles?.full_name }
-      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+        payout_details: { pix_key: rawKey, amount: amount, name: payout.profiles?.full_name || 'Entregador' }
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
+
   } catch (error: any) {
-    return new Response(JSON.stringify({ success: false, error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+    console.error(`Erro Fatal: ${error.message}`)
+    if (currentPayoutId) {
+       // Se deu erro fatal, volta para pendente para não travar a lista
+       await supabaseClient.from('withdrawal_requests').update({ status: 'pending', error_message: error.message }).eq('id', currentPayoutId)
+    }
+    return new Response(JSON.stringify({ success: false, error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   }
 })
