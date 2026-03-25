@@ -64,16 +64,40 @@ serve(async (req) => {
       // Strategy 1: Transfers (Manual / Wallet to Wallet/Pix)
       {
         url: 'https://api.mercadopago.com/v1/transfers',
-        label: 'MP-TRANSFERS',
+        label: 'MP-TRANSFERS-CLEAN',
         method: 'POST',
         payload: {
           amount: amount,
           payment_method_id: 'pix',
-          pix_key: formattedPhone,
+          pix_key: cleanKey, // Tentativa 1: Apenas os 11 dígitos
           description: `Repasse Guepardo - ${payoutId}`
         }
       },
-      // Strategy 2: Money Out Payouts (Alternative Official)
+      // Strategy 2: Transfers (Com Formatação do Usuário)
+      {
+        url: 'https://api.mercadopago.com/v1/transfers',
+        label: 'MP-TRANSFERS-FORMATTED',
+        method: 'POST',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          pix_key: rawKey, // Tentativa 2: (11) 98749-9545 (como sugerido)
+          description: `Repasse Guepardo`
+        }
+      },
+      // Strategy 3: Transfers (Com +55)
+      {
+        url: 'https://api.mercadopago.com/v1/transfers',
+        label: 'MP-TRANSFERS-INTL',
+        method: 'POST',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          pix_key: formattedPhone, // Tentativa 3: +5511987499545
+          description: `Repasse Guepardo`
+        }
+      },
+      // Strategy 4: Money Out Payouts (Alternative Official)
       {
         url: 'https://api.mercadopago.com/v1/money_out/payouts',
         label: 'MP-MONEY-OUT',
