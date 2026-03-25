@@ -95,8 +95,8 @@ serve(async (req) => {
           first_name: 'Guepardo',
           last_name: 'Delivery',
           identification: {
-            type: MP_SENDER_ID.length > 11 ? 'CNPJ' : 'CPF',
-            number: MP_SENDER_ID
+            type: MP_SENDER_ID.replace(/[^\d]/g, '').length > 11 ? 'CNPJ' : 'CPF',
+            number: MP_SENDER_ID.replace(/[^\d]/g, '')
           }
         },
         point_of_interaction: {
