@@ -266,6 +266,10 @@ const FinanceManagement = () => {
                 throw new Error(errorMessage);
             }
 
+            if (data?.success === false) {
+                throw new Error(data.error || 'Erro no processamento');
+            }
+
             // Sucesso (Pode ser automático ou solicitação de PIX manual)
             if (data?.manual_required) {
                 alert(data.message); // Exibe o aviso que o PIX deve ser manual

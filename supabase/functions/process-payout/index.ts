@@ -12,10 +12,14 @@ serve(async (req) => {
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    )
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('URL_SUPABASE') || ''
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+    
+    if (!supabaseUrl || !supabaseKey) {
+        throw new Error(`Configuração do Supabase incompleta: URL=${!!supabaseUrl}, Key=${!!supabaseKey}`)
+    }
+
+    const supabaseClient = createClient(supabaseUrl, supabaseKey)
 
     const { payoutId } = await req.json()
 
@@ -40,7 +44,7 @@ serve(async (req) => {
       .from('withdrawal_requests')
       .select(`
         *,
-        profiles (
+        profiles:user_id (
           full_name,
           phone
         )
@@ -183,14 +187,14 @@ serve(async (req) => {
     } else {
         console.error(`Falha Total: ${lastError}`)
         await supabaseClient.from('withdrawal_requests').update({ status: 'failed', error_message: lastError }).eq('id', payoutId)
-        return new Response(JSON.stringify({ success: false, error: lastError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
+        return new Response(JSON.stringify({ success: false, error: lastError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
 
   } catch (error: any) {
     console.error('LOG ERROR:', error.message)
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 } // Retornar 400 para erros de lógica
+      JSON.stringify({ success: false, error: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
   }
 })
