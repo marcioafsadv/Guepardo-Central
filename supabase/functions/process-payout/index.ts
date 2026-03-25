@@ -120,7 +120,7 @@ serve(async (req) => {
           }
         }
       },
-      // Strategy 3: Wallet Payouts (Transferência Direta)
+      // Strategy 3: Wallet Payouts (Transferência Direta para Chave PIX)
       {
         url: 'https://api.mercadopago.com/v1/wallet_payouts',
         label: 'MP-WALLET-PAYOUT',
@@ -129,8 +129,22 @@ serve(async (req) => {
           amount: amount,
           payment_method_id: 'pix',
           payout_info: {
-            type: keyType,
+            type: keyType === 'evp' ? 'random_key' : keyType,
             value: cleanKey
+          }
+        }
+      },
+      // Strategy 4: Payouts v3 (Algumas contas novas exigem v3)
+      {
+        url: 'https://api.mercadopago.com/v3/payouts',
+        label: 'MP-PAYOUTS-V3',
+        method: 'POST',
+        payload: {
+          total_amount: amount,
+          payment_method_id: 'pix',
+          payout_info: {
+             type: 'pix_key',
+             value: cleanKey
           }
         }
       }
@@ -159,14 +173,21 @@ serve(async (req) => {
 
         const data = await res.json()
 
-        if (res.ok) {
-          console.log(`Sucesso com ${attempt.label}! ID: ${data.id}`)
+        // Validar se é um sucesso REAL de saída de dinheiro (approved/completed)
+        // Se for 'pending', no caso de PIX, geralmente é a geração de um QR Code para RECEBER
+        const isActuallyPaid = res.ok && (data.status === 'approved' || data.status === 'completed')
+
+        if (isActuallyPaid) {
+          console.log(`Sucesso Real com ${attempt.label}! ID: ${data.id}`)
           finalResponse = data
           break
         } else {
-          const errorMsg = `[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`
+          const errorMsg = res.ok 
+            ? `[${attempt.label}] Ignorado (Status Pendente/Cobrança): ${data.status}`
+            : `[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`
+          
           errorDetails.push(errorMsg)
-          console.error(`Falha em ${attempt.label}:`, errorMsg)
+          console.error(`Falha ou Pendência em ${attempt.label}:`, errorMsg)
           
           if (res.status === 401 || res.status === 403) break
         }

@@ -273,6 +273,8 @@ const FinanceManagement = () => {
             // Sucesso (Pode ser automático ou solicitação de PIX manual)
             if (data?.manual_required) {
                 alert(data.message); // Exibe o aviso que o PIX deve ser manual
+            } else {
+                alert(`Repasse realizado com sucesso! ID Mercado Pago: ${data?.data?.id || 'N/A'}`);
             }
 
             setPayouts(prev => prev.map(p => 
