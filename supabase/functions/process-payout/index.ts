@@ -37,14 +37,16 @@ serve(async (req) => {
     const { payoutId } = await req.json()
     console.log(`Iniciando processamento do repasse: ${payoutId}`)
 
-    // 1. Obter dados do repasse
+    // 1. Obter dados do repasse + Perfil com CPF
     const { data: payout, error: payoutError } = await supabaseClient
       .from('withdrawal_requests')
       .select(`
         *,
         profiles:user_id (
           full_name,
-          phone
+          phone,
+          cpf,
+          email
         )
       `)
       .eq('id', payoutId)
@@ -54,23 +56,17 @@ serve(async (req) => {
       throw new Error(`Solicitação de repasse não encontrada: ${payoutError?.message || 'Sem dados'}`)
     }
 
-    if (payout.status === 'completed') {
-      throw new Error(`Esta solicitação já está em estado: ${payout.status}`)
-    }
-
-    // 2. Marcar como processando no banco
+    // 2. Marcar como processando
     await supabaseClient
       .from('withdrawal_requests')
       .update({ status: 'processing' })
       .eq('id', payoutId)
 
-    // 3. Credenciais do Mercado Pago
-    const MP_PAYOUT_ACCESS_TOKEN = Deno.env.get('MP_PAYOUT_ACCESS_TOKEN')
-    const MP_LEGACY_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
-    const MP_ACCESS_TOKEN = MP_PAYOUT_ACCESS_TOKEN || MP_LEGACY_TOKEN
+    // 3. Credenciais MP
+    const MP_ACCESS_TOKEN = Deno.env.get('MP_PAYOUT_ACCESS_TOKEN') || Deno.env.get('MP_ACCESS_TOKEN')
     
     if (!MP_ACCESS_TOKEN) {
-      throw new Error('Nenhuma credencial do Mercado Pago encontrada.')
+      throw new Error('Credencial MP_PAYOUT_ACCESS_TOKEN não configurada.')
     }
 
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
@@ -80,14 +76,18 @@ serve(async (req) => {
     // Identificar tipo de chave
     let keyType = 'email'
     if (cleanKey.includes('@')) keyType = 'email'
-    else if (cleanKey.length === 11) keyType = 'cpf'
+    else if (cleanKey.length === 11 && /^\d+$/.test(cleanKey)) keyType = 'cpf'
     else if (cleanKey.length === 14) keyType = 'cnpj'
     else if (cleanKey.length > 11 && /^\d+$/.test(cleanKey)) keyType = 'phone'
     else keyType = 'evp'
 
-    console.log(`Processando Repasse R$ ${amount} para chave [${keyType}]: ${cleanKey}`)
+    // Obter Identificação Real (Importante para evitar "Invalid identification")
+    const receiverCPF = (payout.profiles?.cpf || '').replace(/\D/g, '')
+    const receiverEmail = payout.profiles?.email || 'financeiro@guepardo.delivery'
+    const identificationType = receiverCPF.length === 14 ? 'CNPJ' : 'CPF'
 
-    // ESTRATÉGIAS DE REPASSE
+    console.log(`Processando R$ ${amount} para ${payout.profiles?.full_name} | Chave: ${cleanKey} | CPF: ${receiverCPF}`)
+
     const attempts = [
       // Strategy 1: Dispersão Oficial (Payouts v1)
       {
@@ -103,35 +103,35 @@ serve(async (req) => {
           }
         }
       },
-      // Strategy 2: Dispersão Oficial (Payouts v1 - Alternative field)
-      {
-        url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'MP-DISPERSAO-V1-ALT',
-        method: 'POST',
-        payload: {
-          transaction_amount: amount,
-          payment_method_id: 'pix',
-          payout_info: {
-             type: keyType,
-             value: keyType === 'phone' && !cleanKey.startsWith('+') ? `+${cleanKey}` : cleanKey
-          }
-        }
-      },
-      // Strategy 3: Payments API (Disbursement format)
+      // Strategy 2: Payments API com Identificação REAL (Resolver erro 2067)
       {
         url: 'https://api.mercadopago.com/v1/payments',
-        label: 'MP-PAYMENTS-DISBURSEMENT',
+        label: 'MP-PAYMENTS-REAL-ID',
         method: 'POST',
         payload: {
           transaction_amount: amount,
           payment_method_id: 'pix',
           description: `Repasse Guepardo - ${payoutId}`,
           payer: {
-             email: payout.profiles?.email || 'financeiro@guepardo.delivery',
+             email: receiverEmail,
              identification: {
-                type: keyType === 'cpf' || keyType === 'cnpj' ? keyType.toUpperCase() : 'CPF',
-                number: keyType === 'cpf' || keyType === 'cnpj' ? cleanKey : '00000000000'
+                type: identificationType,
+                number: receiverCPF || '00000000000' // Backup, mas idealmente deve ter CPF
              }
+          }
+        }
+      },
+      // Strategy 3: Wallet Payouts (Transferência Direta)
+      {
+        url: 'https://api.mercadopago.com/v1/wallet_payouts',
+        label: 'MP-WALLET-PAYOUT',
+        method: 'POST',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          payout_info: {
+            type: keyType,
+            value: cleanKey
           }
         }
       }
@@ -141,7 +141,12 @@ serve(async (req) => {
     let errorDetails: string[] = []
 
     for (const attempt of attempts) {
-      console.log(`Tentando Estratégia: ${attempt.label}...`)
+      if (attempt.label === 'MP-PAYMENTS-REAL-ID' && !receiverCPF) {
+          errorDetails.push("[MP-PAYMENTS-REAL-ID] Ignored: Sem CPF no perfil do entregador")
+          continue
+      }
+
+      console.log(`Tentando ${attempt.label}...`)
       try {
         const res = await fetch(attempt.url, {
           method: attempt.method,
@@ -162,19 +167,14 @@ serve(async (req) => {
         } else {
           const errorMsg = `[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`
           errorDetails.push(errorMsg)
-          console.error(`Falha na estratégia ${attempt.label}:`, errorMsg)
+          console.error(`Falha em ${attempt.label}:`, errorMsg)
           
-          if (res.status === 401 || res.status === 403) {
-             errorDetails.push("ERRO DE PERMISSÃO: Verifique se o Access Token tem escopo de 'Payouts'.")
-             break
-          }
+          if (res.status === 401 || res.status === 403) break
         }
       } catch (err: any) {
         errorDetails.push(`[${attempt.label}] Erro de Rede: ${err.message}`)
       }
     }
-
-    const lastError = errorDetails.join(' | ')
 
     if (finalResponse) {
       await supabaseClient.from('withdrawal_requests')
@@ -184,7 +184,8 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, message: 'Repasse realizado com sucesso!', data: finalResponse }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     } else {
-      console.error(`FALHA TOTAL NO REPASSE: ${lastError}`)
+      const lastError = errorDetails.join(' | ')
+      console.error(`FALHA TOTAL: ${lastError}`)
       await supabaseClient.from('withdrawal_requests').update({ status: 'failed', error_message: lastError }).eq('id', payoutId)
       return new Response(JSON.stringify({ success: false, error: lastError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
