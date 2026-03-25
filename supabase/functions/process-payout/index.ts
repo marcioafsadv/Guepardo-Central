@@ -51,8 +51,8 @@ serve(async (req) => {
       throw new Error('Solicitação de repasse não encontrada')
     }
 
-    if (payout.status !== 'pending') {
-      throw new Error('Esta solicitação já foi processada')
+    if (payout.status !== 'pending' && payout.status !== 'failed') {
+      throw new Error(`Esta solicitação já está em estado: ${payout.status}`)
     }
 
     // 2. Atualizar status para processando
@@ -65,7 +65,7 @@ serve(async (req) => {
     const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
     
     if (!MP_ACCESS_TOKEN) {
-      throw new Error('Secret MP_ACCESS_TOKEN não encontrada. Configure no Supabase CLI.')
+      throw new Error('Secret MP_ACCESS_TOKEN não encontrada. Configure no Supabase.')
     }
 
     // Gerar um idempotency key único
@@ -140,10 +140,13 @@ serve(async (req) => {
       
       console.error(`MP API Error (400): ${errorMessage}`)
 
-      // Tentar atualizar status para falha, mas não travar se a coluna error_message não existir
+      // Voltar para falha e gravar erro
       await supabaseClient
         .from('withdrawal_requests')
-        .update({ status: 'failed' })
+        .update({ 
+          status: 'failed',
+          error_message: errorMessage 
+        })
         .eq('id', payoutId)
 
       return new Response(
@@ -153,10 +156,10 @@ serve(async (req) => {
     }
 
   } catch (error: any) {
-    console.error('CRITICAL ERROR:', error.message)
+    console.error('LOG ERROR:', error.message)
     return new Response(
       JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 } // Retornar 400 para erros de lógica
     )
   }
 })
