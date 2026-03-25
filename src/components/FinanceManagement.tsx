@@ -252,7 +252,7 @@ const FinanceManagement = () => {
                 throw new Error('Sessão expirada. Por favor, faça login novamente.');
             }
 
-            const { data, error } = await supabase.functions.invoke('process-payout', {
+            const { error } = await supabase.functions.invoke('process-payout', {
                 body: { payoutId }
             });
             
