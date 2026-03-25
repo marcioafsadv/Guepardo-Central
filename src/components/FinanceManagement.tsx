@@ -252,23 +252,12 @@ const FinanceManagement = () => {
                 throw new Error('Sessão expirada. Por favor, faça login novamente.');
             }
 
-            const token = session.access_token;
-            const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/process-payout`;
-
-            const response = await fetch(functionUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`,
-                    'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY
-                },
-                body: JSON.stringify({ payoutId })
+            const { data, error } = await supabase.functions.invoke('process-payout', {
+                body: { payoutId }
             });
-
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || result.message || 'Erro ao processar pagamento');
+            
+            if (error) {
+                throw new Error(error.message || 'Erro ao processar pagamento');
             }
 
             // Sucesso
