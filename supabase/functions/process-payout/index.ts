@@ -83,12 +83,12 @@ serve(async (req) => {
         description: `Guepardo - Repasse Entregador: ${payout.profiles?.full_name || 'Parceiro'}`,
         payment_method_id: 'pix',
         payer: {
-          email: 'financeiro@guepardo.app', // E-mail da conta Mercado Pago
+          email: 'financeiro@guepardo.app',
           first_name: 'Guepardo',
           last_name: 'App',
           identification: {
             type: 'CNPJ',
-            number: '00000000000000' // Opcional se for conta PJ
+            number: '00000000000000'
           }
         },
         // Destinatário do PIX
@@ -96,14 +96,11 @@ serve(async (req) => {
           linked_to: {
             type: 'pix',
             parameters: {
-               // Mercado Pago Payouts (Transferências) via API geralmente usam este endpoint
-               // Nota: Dependendo da permissão da conta, pode ser necessário o endpoint de /v1/disbursements
+               // Usando a chave PIX salva na solicitação
+               pix_key: payout.pix_key || payout.withdraw_info || ''
             }
           }
-        },
-        // Alternativa: Se for uma transferência interna ou via PIX comum
-        // Para PIX via chave, o Mercado Pago usa o objeto "payer" ou dados de desembolso específicos
-        // Nota Importante: PIX OUT na API do Mercado Pago requer aprovação prévia da conta para "Disbursements"
+        }
       })
     })
 
