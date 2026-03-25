@@ -28,7 +28,8 @@ serve(async (req) => {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
     
     if (userError || !user) {
-      throw new Error('Usuário não autenticado ou token inválido')
+      console.error('Erro de Autenticação:', userError)
+      throw new Error(`Usuário não autenticado ou token inválido: ${userError?.message || 'Sem sessão'}`)
     }
 
     // Opcional: Validar se o usuário é admin se tivermos um campo role
@@ -76,11 +77,21 @@ serve(async (req) => {
 
 
     // 3. Obter o MEU ID (Collector ID) do Mercado Pago
+    console.log("Validando Token do Mercado Pago...")
     const meResponse = await fetch('https://api.mercadopago.com/users/me', {
       headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` }
     })
+    
+    if (!meResponse.ok) {
+        const errorBody = await meResponse.text()
+        console.error('Erro ao validar Token MP:', errorBody)
+        throw new Error(`Token do Mercado Pago Inválido ou Expirado: ${meResponse.status}`)
+    }
+
     const meData = await meResponse.json()
     const collectorId = meData.id
+    if (!collectorId) throw new Error('Não foi possível obter o Collector ID da conta Mercado Pago.')
+    
     console.log(`Identificado Collector ID: ${collectorId}`)
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
     const rawKey = (payout.pix_key || payout.withdraw_info || '').trim().replace(/[^\d\w@.-]/g, '')

@@ -257,7 +257,13 @@ const FinanceManagement = () => {
             });
             
             if (error) {
-                throw new Error(error.message || 'Erro ao processar pagamento');
+                // Tentar extrair a mensagem de erro do corpo da resposta do Supabase
+                let errorMessage = error.message || 'Erro ao processar pagamento';
+                try {
+                    const errorData = JSON.parse(error.message);
+                    if (errorData.error) errorMessage = errorData.error;
+                } catch (e) {}
+                throw new Error(errorMessage);
             }
 
             // Sucesso (Pode ser automático ou solicitação de PIX manual)
