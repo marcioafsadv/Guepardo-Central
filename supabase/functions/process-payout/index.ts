@@ -132,23 +132,26 @@ serve(async (req) => {
       )
     } else {
       const errorData = await mpResponse.json()
-      console.error('Erro Mercado Pago:', errorData)
+      console.error('Erro detalhado Mercado Pago:', JSON.stringify(errorData, null, 2))
+      
+      const errorMessage = errorData.message || (errorData.cause && errorData.cause[0]?.description) || 'Erro desconhecido na API do Mercado Pago'
       
       await supabaseClient
         .from('withdrawal_requests')
         .update({ 
           status: 'failed',
-          error_message: errorData.message || 'Erro na API do Mercado Pago'
+          error_message: errorMessage
         })
         .eq('id', payoutId)
 
       return new Response(
-        JSON.stringify({ success: false, error: errorData.message }),
+        JSON.stringify({ success: false, error: errorMessage }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
       )
     }
 
   } catch (error: any) {
+    console.error('Erro na Edge Function:', error.message)
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
