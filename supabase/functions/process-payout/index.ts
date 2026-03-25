@@ -73,7 +73,7 @@ serve(async (req) => {
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
     const pixKey = (payout.pix_key || payout.withdraw_info || '').trim()
 
-    console.log(`Tentando Transferência PIX (Formato Simples): R$ ${amount} para ${pixKey}`)
+    console.log(`Tentando Transferência Automática: R$ ${amount} para ${pixKey}`)
 
     const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
@@ -84,7 +84,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         transaction_amount: amount,
-        description: `Guepardo Payout: ${payout.profiles?.full_name || 'Entregador'}`,
+        description: `Guepardo Automatizado: ${payout.profiles?.full_name || 'Entregador'}`,
         payment_method_id: 'pix',
         payer: {
           email: 'financeiro@guepardo.app',
@@ -93,9 +93,17 @@ serve(async (req) => {
             number: MP_SENDER_ID
           }
         },
-        // ALGUNS sistemas usam o PIX KEY direto no payer_email ou em metadata se for saque manual
-        // Mas vamos enviar os parâmetros mínimos que o MP exige para não dar erro de "Name"
-        callback_url: 'https://guepardo.app'
+        point_of_interaction: {
+          type: 'CHECKOUT',
+          transaction_data: {
+            linked_to: {
+              type: 'pix',
+              parameters: {
+                 pix_key: pixKey
+              }
+            }
+          }
+        }
       })
     })
 
@@ -109,39 +117,37 @@ serve(async (req) => {
       console.error('Falha ao processar JSON de resposta do MP')
     }
 
-    // Se o MP recusar (400), marcamos como concluído no sistema mas avisamos para fazer manual
-    if (!mpResponse.ok) {
-        const errorMsg = responseData.message || 'Erro na API do Mercado Pago'
-        console.warn(`PIX Automático falhou, mas marcando como concluído (Manual): ${errorMsg}`)
-        
+    if (mpResponse.ok) {
+        // SUCESSO REAL - Pagamento Realizado
         await supabaseClient
           .from('withdrawal_requests')
           .update({ 
             status: 'completed',
-            error_message: `Manual Requerido: ${errorMsg}` 
+            processed_at: new Date().toISOString()
           })
           .eq('id', payoutId)
 
         return new Response(
-          JSON.stringify({ 
-            success: true, 
-            manual_required: true, 
-            message: `O Mercado Pago recusou o PIX automático: "${errorMsg}". \n\nPara não te travar, o sistema MARCOU COMO PAGO, mas você deve fazer o PIX manualmente no seu banco para o entregador.` 
-          }),
+          JSON.stringify({ success: true, message: 'Transferência automática realizada com sucesso!', data: responseData }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
+    } else {
+        const errorMsg = responseData.message || (responseData.cause && responseData.cause[0]?.description) || 'Erro na API do Mercado Pago'
+        console.error(`Falha no Automático: ${errorMsg}`)
+        
+        await supabaseClient
+          .from('withdrawal_requests')
+          .update({ 
+            status: 'failed',
+            error_message: errorMsg 
+          })
+          .eq('id', payoutId)
+
+        return new Response(
+          JSON.stringify({ success: false, error: errorMsg }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
+        )
     }
-
-    // Se o MP aceitar (Sucesso Total)
-    await supabaseClient
-      .from('withdrawal_requests')
-      .update({ status: 'completed' })
-      .eq('id', payoutId)
-
-    return new Response(
-      JSON.stringify({ success: true, data: responseData }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-    )
 
   } catch (error: any) {
     console.error('LOG ERROR:', error.message)
