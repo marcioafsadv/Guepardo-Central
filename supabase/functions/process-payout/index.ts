@@ -61,9 +61,9 @@ serve(async (req) => {
       .update({ status: 'processing' })
       .eq('id', payoutId)
 
-    // 3. Chamar API do Mercado Pago (PIX Payout)
+    // 3. Chamar API do Mercado Pago (PIX Payout / Transfer)
     const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
-    const MP_SENDER_ID = Deno.env.get('MP_SENDER_ID') || '00000000000000' // Deve ser o CPF/CNPJ da conta pagadora
+    const MP_SENDER_ID = Deno.env.get('MP_SENDER_ID')?.replace(/[^\d]/g, '') || '00000000000000'
     
     if (!MP_ACCESS_TOKEN) {
       throw new Error('Secret MP_ACCESS_TOKEN não encontrada. Configure no Supabase.')
@@ -71,14 +71,12 @@ serve(async (req) => {
 
     // Gerar um idempotency key único
     const idempotencyKey = `payout_${payoutId}_${Date.now()}`
-
-    // Tratamento do valor
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
-    if (isNaN(amount)) throw new Error(`Valor de repasse inválido: ${payout.amount}`)
+    const pixKey = (payout.pix_key || payout.withdraw_info || '').trim()
 
-    const pixKey = payout.pix_key || payout.withdraw_info || ''
-    console.log(`Iniciando PIX de R$ ${amount} para: ${pixKey}`)
+    console.log(`Iniciando Transferência PIX: R$ ${amount} para ${pixKey}`)
 
+    // TENTATIVA 1: Formato Standard para Payout via v1/payments
     const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
       headers: {
@@ -92,16 +90,18 @@ serve(async (req) => {
         payment_method_id: 'pix',
         payer: {
           email: 'financeiro@guepardo.app',
-          first_name: 'Guepardo',
-          last_name: 'Delivery',
           identification: {
-            type: MP_SENDER_ID.replace(/[^\d]/g, '').length > 11 ? 'CNPJ' : 'CPF',
-            number: MP_SENDER_ID.replace(/[^\d]/g, '')
+            type: MP_SENDER_ID.length > 11 ? 'CNPJ' : 'CPF',
+            number: MP_SENDER_ID
           }
         },
         point_of_interaction: {
-          // Ajuste fino para a API de Repasse PIX (Linked To)
           type: 'CHECKOUT',
+          transaction_data: {
+             // Algumas contas usam pix_key aqui dentro
+             pix_key: pixKey
+          },
+          // Outras contas usam linked_to
           linked_to: {
             type: 'pix',
             parameters: {
