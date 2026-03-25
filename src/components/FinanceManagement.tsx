@@ -870,37 +870,42 @@ const FinanceManagement = () => {
                                                      p.status === 'failed' ? 'Falhou' : 'Processando'}
                                                 </div>
                                             </td>
-                                            <td className="px-8 py-5 text-right">
-                                                {p.status === 'pending' && (
-                                                    <button
-                                                        onClick={() => handleApprovePayout(p.id)}
-                                                        disabled={isProcessing !== null}
-                                                        className="px-4 py-2 bg-brand-gradient text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
-                                                    >
-                                                        {isProcessing === p.id ? (
-                                                            <>
-                                                                <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                                                                Processando
-                                                            </>
-                                                        ) : (
-                                                            <>
-                                                                <ArrowDownLeft size={14} />
-                                                                Aprovar e Pagar
-                                                            </>
-                                                        )}
-                                                    </button>
-                                                )}
-                                                {p.status === 'failed' && (
-                                                    <div className="flex flex-col items-end gap-1">
-                                                        <span className="text-[8px] text-red-400 font-bold uppercase">{p.error_message || 'Erro Desconhecido'}</span>
+                                             <td className="px-8 py-5 text-right">
+                                                <div className="flex items-center justify-end gap-4">
+                                                    {p.status === 'pending' && (
                                                         <button
                                                             onClick={() => handleApprovePayout(p.id)}
-                                                            className="text-[9px] text-[#A8A29E] hover:text-white underline font-bold"
+                                                            disabled={isProcessing !== null}
+                                                            className="px-4 py-2 bg-brand-gradient text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
                                                         >
-                                                            Tentar Novamente
+                                                            {isProcessing === p.id ? (
+                                                                <>
+                                                                    <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                                                    Processando
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <ArrowDownLeft size={14} />
+                                                                    Aprovar e Pagar
+                                                                </>
+                                                            )}
                                                         </button>
-                                                    </div>
-                                                )}
+                                                    )}
+                                                    {(p.status === 'completed' || p.status === 'failed') && (
+                                                        <div className="flex flex-col items-end gap-1">
+                                                            {p.status === 'failed' && (
+                                                                <span className="text-[8px] text-red-400 font-bold uppercase">{p.error_message || 'Erro Desconhecido'}</span>
+                                                            )}
+                                                            <button
+                                                                onClick={() => handleResetPayoutStatus(p.id)}
+                                                                disabled={isProcessing !== null}
+                                                                className="text-[9px] text-[#A8A29E] hover:text-white underline font-bold flex items-center gap-1"
+                                                            >
+                                                                {isProcessing === p.id ? 'Resetando...' : (p.status === 'failed' ? 'Tentar Novamente (Resetar)' : 'Reiniciar Status')}
+                                                            </button>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </td>
                                         </tr>
                                     ))
