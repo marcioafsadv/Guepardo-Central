@@ -23,7 +23,9 @@ import {
     CheckCircle,
     AlertCircle,
     Info,
-    ArrowDownLeft
+    ArrowDownLeft,
+    AlertTriangle,
+    Copy
 } from 'lucide-react';
 import {
     AreaChart,
@@ -58,6 +60,7 @@ const FinanceManagement = () => {
     const [activeTab, setActiveTab] = useState<'history' | 'payouts'>('history');
     const [payouts, setPayouts] = useState<any[]>([]);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
+    const [manualPayoutData, setManualPayoutData] = useState<any>(null);
 
     const fetchFinanceData = useCallback(async () => {
         try {
@@ -272,7 +275,7 @@ const FinanceManagement = () => {
 
             // Sucesso (Pode ser automático ou solicitação de PIX manual)
             if (data?.manual_required) {
-                alert(data.message); // Exibe o aviso que o PIX deve ser manual
+                setManualPayoutData({ ...data.payout_details, id: payoutId });
             } else {
                 alert(`Repasse realizado com sucesso! ID Mercado Pago: ${data?.data?.id || 'N/A'}`);
             }
@@ -933,6 +936,84 @@ const FinanceManagement = () => {
                                 )}
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            )}
+            {/* Manual Payout Helper Modal */}
+            {manualPayoutData && (
+                <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-in fade-in zoom-in duration-300">
+                    <div className="bg-[#1A1C1E] border-2 border-[#FF6B00]/30 w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative">
+                        <div className="flex flex-col items-center text-center gap-6">
+                            <div className="w-16 h-16 bg-[#FF6B00]/20 text-[#FF6B00] rounded-2xl flex items-center justify-center shadow-glow-orange">
+                                <AlertTriangle size={32} />
+                            </div>
+                            <div className="space-y-2">
+                                <h2 className="text-2xl font-black text-white uppercase italic">Pagamento Manual Necessário</h2>
+                                <p className="text-xs text-[#A8A29E] font-bold leading-relaxed">O Mercado Pago não autorizou o envio automático por falta de permissão na conta. Por favor, realize o PIX manualmente:</p>
+                            </div>
+                            
+                            <div className="w-full space-y-4 bg-black/40 p-6 rounded-3xl border border-white/5">
+                                <div className="flex flex-col items-start gap-1">
+                                    <span className="text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Valor do Repasse</span>
+                                    <div className="flex items-center justify-between w-full">
+                                        <span className="text-xl font-black text-white italic">R$ {manualPayoutData.amount.toFixed(2)}</span>
+                                        <button 
+                                            onClick={() => { navigator.clipboard.writeText(manualPayoutData.amount.toFixed(2)); alert('Valor copiado!'); }} 
+                                            className="text-[#FF6B00] hover:text-white p-2 transition-colors"
+                                        >
+                                            <Copy size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="flex flex-col items-start gap-1">
+                                    <span className="text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Chave PIX do Entregador</span>
+                                    <div className="flex items-center justify-between w-full">
+                                        <span className="text-sm font-black text-white break-all flex-1 text-left">{manualPayoutData.pix_key}</span>
+                                        <button 
+                                            onClick={() => { navigator.clipboard.writeText(manualPayoutData.pix_key); alert('Chave copiada!'); }} 
+                                            className="text-[#FF6B00] hover:text-white p-2 transition-colors"
+                                        >
+                                            <Copy size={18} />
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex flex-col w-full gap-3">
+                                <button
+                                    onClick={async () => {
+                                        try {
+                                            const { error } = await supabase.from('withdrawal_requests')
+                                                .update({ 
+                                                    status: 'completed', 
+                                                    processed_at: new Date().toISOString(),
+                                                    error_message: 'Processado Manualmente (Block API)'
+                                                })
+                                                .eq('id', manualPayoutData.id);
+                                            
+                                            if (error) throw error;
+                                            
+                                            setPayouts(prev => prev.map(p => 
+                                                p.id === manualPayoutData.id ? { ...p, status: 'completed' } : p
+                                            ));
+                                            setManualPayoutData(null);
+                                            alert('Repasse confirmado com sucesso no sistema!');
+                                        } catch (e) {
+                                            alert('Erro ao confirmar no sistema. Mas se você pagou o PIX, o dinheiro foi enviado.');
+                                        }
+                                    }}
+                                    className="w-full py-4 bg-brand-gradient text-white font-black uppercase tracking-widest rounded-2xl shadow-glow hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                >
+                                    Confirmar Pagamento Realizado
+                                </button>
+                                <button
+                                    onClick={() => setManualPayoutData(null)}
+                                    className="text-[10px] text-[#A8A29E] hover:text-white uppercase font-black transition-colors"
+                                >
+                                    Cancelar / Voltar
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}

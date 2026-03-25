@@ -166,8 +166,18 @@ serve(async (req) => {
       return new Response(JSON.stringify({ success: true, data: finalResponse }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     } else {
       const lastError = errorDetails.join(' | ')
-      await supabaseClient.from('withdrawal_requests').update({ status: 'failed', error_message: lastError }).eq('id', payoutId)
-      return new Response(JSON.stringify({ success: false, error: lastError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+      // Não marcamos como FAILED no banco imediatamente para permitir o fluxo manual no frontend
+      return new Response(JSON.stringify({ 
+        success: true, 
+        manual_required: true, 
+        error: lastError,
+        message: "O Mercado Pago não autorizou o envio automático (falta de permissão na conta). Por favor, realize o PIX manualmente pelo App do Banco.",
+        payout_details: {
+           pix_key: rawKey,
+           amount: amount,
+           name: payout.profiles?.full_name
+        }
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
   } catch (error: any) {
     return new Response(JSON.stringify({ success: false, error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
