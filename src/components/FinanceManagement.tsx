@@ -276,12 +276,30 @@ const FinanceManagement = () => {
 
         } catch (err: any) {
             console.error('Error approving payout:', err);
-            // Atualiza status local para 'failed' para mostrar o erro na UI
+            alert(err.message || 'Falha ao processar repasse');
+        } finally {
+            setIsProcessing(null);
+        }
+    };
+
+    const handleResetPayoutStatus = async (payoutId: string) => {
+        try {
+            setIsProcessing(payoutId);
+            const { error } = await supabase
+                .from('withdrawal_requests')
+                .update({ status: 'pending', error_message: null, processed_at: null })
+                .eq('id', payoutId);
+
+            if (error) throw error;
+            
             setPayouts(prev => prev.map(p => 
-                p.id === payoutId 
-                    ? { ...p, status: 'failed', error_message: err.message } 
-                    : p
+                p.id === payoutId ? { ...p, status: 'pending', error_message: null, processed_at: null } : p
             ));
+            
+            void fetchPayouts();
+        } catch (err: any) {
+            console.error('Error resetting status:', err);
+            alert('Falha ao resetar status');
         } finally {
             setIsProcessing(null);
         }

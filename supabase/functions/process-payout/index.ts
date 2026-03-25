@@ -69,19 +69,25 @@ serve(async (req) => {
       throw new Error('Secret MP_ACCESS_TOKEN não encontrada. Configure no Supabase.')
     }
 
+    // 3. Obter o MEU ID (Collector ID) do Mercado Pago
+    const meResponse = await fetch('https://api.mercadopago.com/users/me', {
+      headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` }
+    })
+    const meData = await meResponse.json()
+    const collectorId = meData.id
+
     const idempotencyKey = `payout_${payoutId}_${Date.now()}`
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
     let pixKey = (payout.pix_key || payout.withdraw_info || '').trim().replace(/[^\d\w@.-]/g, '')
 
-    // Auto-formatação para chaves de Telefone (Faltando +55)
     if (/^\d{10,11}$/.test(pixKey)) {
-      console.log(`Detectada chave de telefone sem prefixo. Formatando de ${pixKey} para +55${pixKey}`)
       pixKey = `+55${pixKey}`
     }
 
-    console.log(`Tentando Transferência Automática: R$ ${amount} para ${pixKey}`)
+    console.log(`Iniciando Repasse Profissional (Disbursements): R$ ${amount} para ${pixKey} (Collector: ${collectorId})`)
 
-    const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+    // TENTATIVA: Endpoint de Disbursements (Payouts de Empresa)
+    const mpResponse = await fetch('https://api.mercadopago.com/v1/disbursements', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
@@ -89,26 +95,13 @@ serve(async (req) => {
         'X-Idempotency-Key': idempotencyKey
       },
       body: JSON.stringify({
-        transaction_amount: amount,
-        description: `Guepardo Automatizado: ${payout.profiles?.full_name || 'Entregador'}`,
+        amount: amount,
+        collector_id: collectorId,
+        external_reference: payoutId,
         payment_method_id: 'pix',
-        payer: {
-          email: 'financeiro@guepardo.app',
-          identification: {
-            type: MP_SENDER_ID.length > 11 ? 'CNPJ' : 'CPF',
-            number: MP_SENDER_ID
-          }
-        },
-        point_of_interaction: {
-          type: 'CHECKOUT',
-          transaction_data: {
-            linked_to: {
-              type: 'pix',
-              parameters: {
-                 pix_key: pixKey
-              }
-            }
-          }
+        pix_data: {
+          key: pixKey,
+          key_type: pixKey.includes('@') ? 'email' : (pixKey.startsWith('+') ? 'phone' : 'cpf')
         }
       })
     })
@@ -124,7 +117,6 @@ serve(async (req) => {
     }
 
     if (mpResponse.ok) {
-        // SUCESSO REAL - Pagamento Realizado
         await supabaseClient
           .from('withdrawal_requests')
           .update({ 
@@ -134,12 +126,12 @@ serve(async (req) => {
           .eq('id', payoutId)
 
         return new Response(
-          JSON.stringify({ success: true, message: 'Transferência automática realizada com sucesso!', data: responseData }),
+          JSON.stringify({ success: true, message: 'Repasse profissional realizado!', data: responseData }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
     } else {
-        const errorMsg = responseData.message || (responseData.cause && responseData.cause[0]?.description) || 'Erro na API do Mercado Pago'
-        console.error(`Falha no Automático: ${errorMsg}`)
+        const errorMsg = responseData.message || (responseData.cause && responseData.cause[0]?.description) || 'Erro na API de Repasses'
+        console.error(`Falha no Repasse: ${errorMsg}`)
         
         await supabaseClient
           .from('withdrawal_requests')
