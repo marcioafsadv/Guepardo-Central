@@ -62,12 +62,18 @@ serve(async (req) => {
       .eq('id', payoutId)
 
     // 3. Chamar API do Mercado Pago (PIX Payout / Transfer - Simplificado)
-    const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
-    const MP_SENDER_ID = Deno.env.get('MP_SENDER_ID')?.replace(/[^\d]/g, '') || '00000000000000'
+    const MP_PAYOUT_ACCESS_TOKEN = Deno.env.get('MP_PAYOUT_ACCESS_TOKEN')
+    const MP_LEGACY_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
+    const MP_ACCESS_TOKEN = MP_PAYOUT_ACCESS_TOKEN || MP_LEGACY_TOKEN
     
     if (!MP_ACCESS_TOKEN) {
-      throw new Error('Secret MP_ACCESS_TOKEN não encontrada. Configure no Supabase.')
+      throw new Error('Nenhuma credencial do Mercado Pago encontrada (MP_PAYOUT_ACCESS_TOKEN ou MP_ACCESS_TOKEN).')
     }
+
+    if (!MP_PAYOUT_ACCESS_TOKEN && MP_LEGACY_TOKEN) {
+      console.warn("AVISO: Usando chave legacy. Recomenda-se configurar MP_PAYOUT_ACCESS_TOKEN para repasses.")
+    }
+
 
     // 3. Obter o MEU ID (Collector ID) do Mercado Pago
     const meResponse = await fetch('https://api.mercadopago.com/users/me', {
@@ -81,57 +87,39 @@ serve(async (req) => {
     const phoneNoPlus = rawKey.length >= 10 && rawKey.length <= 11 ? `55${rawKey}` : rawKey
     const phoneWithPlus = rawKey.length >= 10 && rawKey.length <= 11 ? `+55${rawKey}` : rawKey
 
-    // ESTRATÉGIAS PARA TESTAR (Focando na C que foi a única reconhecida)
+    // ESTRATÉGIAS DE REPASSE (Payouts / Dispersão)
     const attempts = [
-      // 1. Estratégia C.1: Payout Info com Value (Comum no Brasil)
+      // 1. Estratégia Principal: Payouts API v1 (Standard para Dispersão)
       {
         url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'C1-PAYOUT-VALUE',
+        label: 'MP-V1-PAYOUTS',
         payload: {
           amount: amount,
           payment_method_id: 'pix',
           payout_info: {
              type: rawKey.includes('@') ? 'email' : (rawKey.length > 11 ? 'cnpj' : (rawKey.length === 11 ? 'phone' : 'evp')),
-             value: rawKey.includes('@') ? rawKey : phoneNoPlus
-          }
+             value: rawKey.includes('@') ? rawKey : (rawKey.length === 11 ? phoneWithPlus : rawKey)
+          },
+          client_reference: `payout_${payoutId}`
         }
       },
-      // 2. Estratégia C.2: Payout Info com Value (Com + no Telefone)
-      {
-        url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'C2-PAYOUT-VALUE-PLUS',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          payout_info: {
-             type: rawKey.includes('@') ? 'email' : (rawKey.length > 11 ? 'cnpj' : (rawKey.length === 11 ? 'phone' : 'evp')),
-             value: rawKey.includes('@') ? rawKey : phoneWithPlus
-          }
-        }
-      },
-      // 3. Estratégia C.3: Pix Data com phone_number (Variação detectada)
-      {
-        url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'C3-PIX-DATA-VAR',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          pix_data: {
-             key: phoneWithPlus,
-             key_type: rawKey.includes('@') ? 'email' : 'phone_number'
-          }
-        }
-      },
-      // 4. Fallback A-PAYOUT: Tentando o modo PAYOUT no v1/payments denovo mas com payload limpo
+      // 2. Estratégia Alternativa: Payments API com Point of Interaction (Modo PAYOUT)
       {
         url: 'https://api.mercadopago.com/v1/payments',
-        label: 'A-CLEAN-PAYOUT',
+        label: 'MP-V1-PAYMENTS-PAYOUT',
         payload: {
           transaction_amount: amount,
           payment_method_id: 'pix',
-          description: `Guepardo: ${payoutId}`,
-          payer: { email: 'financeiro@guepardo.app' },
-          point_of_interaction: { type: 'PAYOUT', transaction_data: { pix_key: phoneWithPlus } }
+          description: `Repasse Guepardo: ${payoutId}`,
+          payer: { 
+            email: 'financeiro@guepardo.app',
+            first_name: 'Guepardo',
+            last_name: 'App'
+          },
+          point_of_interaction: { 
+            type: 'PAYOUT', 
+            transaction_data: { pix_key: phoneWithPlus } 
+          }
         }
       }
     ]
