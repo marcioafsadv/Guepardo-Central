@@ -19,6 +19,21 @@ serve(async (req) => {
 
     const { payoutId } = await req.json()
 
+    // 0. Validar o Usuário (Manual JWT Validation)
+    const authHeader = req.headers.get('Authorization')
+    if (!authHeader) {
+      throw new Error('Header de autorização ausente')
+    }
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
+    
+    if (userError || !user) {
+      throw new Error('Usuário não autenticado ou token inválido')
+    }
+
+    // Opcional: Validar se o usuário é admin se tivermos um campo role
+    // if (user.email !== 'seu-email-admin@gmail.com') throw new Error('Acesso negado')
+
     // 1. Buscar os detalhes do repasse
     const { data: payout, error: payoutError } = await supabaseClient
       .from('withdrawal_requests')
