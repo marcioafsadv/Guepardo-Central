@@ -45,8 +45,7 @@ serve(async (req) => {
         profiles:user_id (
           full_name,
           phone,
-          cpf,
-          email
+          cpf
         )
       `)
       .eq('id', payoutId)
@@ -83,7 +82,7 @@ serve(async (req) => {
 
     // Obter Identificação Real (Importante para evitar "Invalid identification")
     const receiverCPF = (payout.profiles?.cpf || '').replace(/\D/g, '')
-    const receiverEmail = payout.profiles?.email || 'financeiro@guepardo.delivery'
+    const receiverEmail = 'financeiro@guepardo.delivery'
     const identificationType = receiverCPF.length === 14 ? 'CNPJ' : 'CPF'
 
     console.log(`Processando R$ ${amount} para ${payout.profiles?.full_name} | Chave: ${cleanKey} | CPF: ${receiverCPF}`)
