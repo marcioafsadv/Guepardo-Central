@@ -1,5 +1,5 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
+import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -21,8 +21,6 @@ serve(async (req) => {
 
     const supabaseClient = createClient(supabaseUrl, supabaseKey)
 
-    const { payoutId } = await req.json()
-
     // 0. Validar o Usuário (Manual JWT Validation)
     const authHeader = req.headers.get('Authorization')
     if (!authHeader) {
@@ -36,10 +34,10 @@ serve(async (req) => {
       throw new Error(`Usuário não autenticado ou token inválido: ${userError?.message || 'Sem sessão'}`)
     }
 
-    // Opcional: Validar se o usuário é admin se tivermos um campo role
-    // if (user.email !== 'seu-email-admin@gmail.com') throw new Error('Acesso negado')
+    const { payoutId } = await req.json()
+    console.log(`Iniciando processamento do repasse: ${payoutId}`)
 
-    // 1. Buscar os detalhes do repasse
+    // 1. Obter dados do repasse
     const { data: payout, error: payoutError } = await supabaseClient
       .from('withdrawal_requests')
       .select(`
@@ -53,145 +51,133 @@ serve(async (req) => {
       .single()
 
     if (payoutError || !payout) {
-      throw new Error('Solicitação de repasse não encontrada')
+      throw new Error(`Solicitação de repasse não encontrada: ${payoutError?.message || 'Sem dados'}`)
     }
 
-    if (payout.status !== 'pending' && payout.status !== 'failed') {
+    if (payout.status === 'completed') {
       throw new Error(`Esta solicitação já está em estado: ${payout.status}`)
     }
 
-    // 2. Atualizar status para processando
+    // 2. Marcar como processando no banco
     await supabaseClient
       .from('withdrawal_requests')
       .update({ status: 'processing' })
       .eq('id', payoutId)
 
-    // 3. Chamar API do Mercado Pago (PIX Payout / Transfer - Simplificado)
+    // 3. Credenciais do Mercado Pago
     const MP_PAYOUT_ACCESS_TOKEN = Deno.env.get('MP_PAYOUT_ACCESS_TOKEN')
     const MP_LEGACY_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
     const MP_ACCESS_TOKEN = MP_PAYOUT_ACCESS_TOKEN || MP_LEGACY_TOKEN
     
     if (!MP_ACCESS_TOKEN) {
-      throw new Error('Nenhuma credencial do Mercado Pago encontrada (MP_PAYOUT_ACCESS_TOKEN ou MP_ACCESS_TOKEN).')
+      throw new Error('Nenhuma credencial do Mercado Pago encontrada.')
     }
 
-    if (!MP_PAYOUT_ACCESS_TOKEN && MP_LEGACY_TOKEN) {
-      console.warn("AVISO: Usando chave legacy. Recomenda-se configurar MP_PAYOUT_ACCESS_TOKEN para repasses.")
-    }
-
-
-    // 3. Obter o MEU ID (Collector ID) do Mercado Pago
-    console.log("Validando Token do Mercado Pago...")
-    const meResponse = await fetch('https://api.mercadopago.com/users/me', {
-      headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` }
-    })
-    
-    if (!meResponse.ok) {
-        const errorBody = await meResponse.text()
-        console.error('Erro ao validar Token MP:', errorBody)
-        throw new Error(`Token do Mercado Pago Inválido ou Expirado: ${meResponse.status}`)
-    }
-
-    const meData = await meResponse.json()
-    const collectorId = meData.id
-    if (!collectorId) throw new Error('Não foi possível obter o Collector ID da conta Mercado Pago.')
-    
-    console.log(`Identificado Collector ID: ${collectorId}`)
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
-    const rawKey = (payout.pix_key || payout.withdraw_info || '').trim().replace(/[^\d\w@.-]/g, '')
-    const phoneNoPlus = rawKey.length >= 10 && rawKey.length <= 11 ? `55${rawKey}` : rawKey
-    const phoneWithPlus = rawKey.length >= 10 && rawKey.length <= 11 ? `+55${rawKey}` : rawKey
+    const rawKey = (payout.pix_key || payout.withdraw_info || '').trim()
+    const cleanKey = rawKey.replace(/[^\d\w@.-]/g, '')
+    
+    // Identificar tipo de chave
+    let keyType = 'email'
+    if (cleanKey.includes('@')) keyType = 'email'
+    else if (cleanKey.length === 11) keyType = 'cpf'
+    else if (cleanKey.length === 14) keyType = 'cnpj'
+    else if (cleanKey.length > 11 && /^\d+$/.test(cleanKey)) keyType = 'phone'
+    else keyType = 'evp'
 
-    // ESTRATÉGIAS DE REPASSE (Payouts / Dispersão)
+    console.log(`Processando Repasse R$ ${amount} para chave [${keyType}]: ${cleanKey}`)
+
+    // ESTRATÉGIAS DE REPASSE
     const attempts = [
-      // 1. Estratégia Principal: Payouts API v1 (Standard para Dispersão)
+      // Strategy 1: Dispersão Oficial (Payouts v1) - O MAIS PROVÁVEL
       {
         url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'MP-V1-PAYOUTS',
+        label: 'MP-DISPERSAO-V1',
+        method: 'POST',
         payload: {
           amount: amount,
           payment_method_id: 'pix',
           payout_info: {
-             type: rawKey.includes('@') ? 'email' : (rawKey.length > 11 ? 'cnpj' : (rawKey.length === 11 ? 'phone' : 'evp')),
-             value: rawKey.includes('@') ? rawKey : (rawKey.length === 11 ? phoneWithPlus : rawKey)
-          },
-          client_reference: `payout_${payoutId}`
+             type: keyType,
+             value: keyType === 'phone' && !cleanKey.startsWith('+') ? `+${cleanKey}` : cleanKey
+          }
         }
       },
-      // 2. Estratégia Alternativa: Payments API com Point of Interaction (Modo PAYOUT)
+      // Strategy 2: Payments API com Operation Type: Payout (Alternativo)
       {
         url: 'https://api.mercadopago.com/v1/payments',
-        label: 'MP-V1-PAYMENTS-PAYOUT',
+        label: 'MP-PAYMENTS-DISBURSEMENT',
+        method: 'POST',
         payload: {
           transaction_amount: amount,
           payment_method_id: 'pix',
-          description: `Repasse Guepardo: ${payoutId}`,
-          payer: { 
-            email: 'financeiro@guepardo.app',
-            first_name: 'Guepardo',
-            last_name: 'App'
+          operation_type: 'payout',
+          description: `Repasse Guepardo - ${payoutId}`,
+          payer: {
+             email: payout.profiles?.email || 'financeiro@guepardo.delivery',
+             identification: {
+                type: keyType === 'cpf' || keyType === 'cnpj' ? keyType.toUpperCase() : 'CPF',
+                number: keyType === 'cpf' || keyType === 'cnpj' ? cleanKey : '00000000000'
+             }
           },
-          point_of_interaction: { 
-            type: 'PAYOUT', 
-            transaction_data: { pix_key: phoneWithPlus } 
+          payout: {
+              type: keyType,
+              value: cleanKey
           }
         }
       }
     ]
 
-    let lastError = 'Nenhum formato aceito'
-    let finalResponse: any = null
+    let finalResponse = null
+    let lastError = ''
 
     for (const attempt of attempts) {
-        const currentIdempotency = `payout_${payoutId}_${attempt.label}_${Date.now()}`
-        console.log(`Tentando ${attempt.label} em ${attempt.url} para ${rawKey}...`)
-        
-        try {
-            const mpResponse = await fetch(attempt.url, {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
-                'Content-Type': 'application/json',
-                'X-Idempotency-Key': currentIdempotency
-              },
-              body: JSON.stringify(attempt.payload)
-            })
+      console.log(`Tentando Estratégia: ${attempt.label}...`)
+      try {
+        const res = await fetch(attempt.url, {
+          method: attempt.method,
+          headers: {
+            'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+            'X-Idempotency-Key': `payout-${payoutId}-${attempt.label}`
+          },
+          body: JSON.stringify(attempt.payload)
+        })
 
-            const responseText = await mpResponse.text()
-            let responseData: any = {}
-            try { responseData = JSON.parse(responseText); } catch (e) {}
+        const data = await res.json()
 
-            if (mpResponse.ok) {
-                console.log(`SUCESSO com ${attempt.label}!`)
-                finalResponse = responseData
-                break
-            } else {
-                lastError = responseData.message || (responseData.cause && responseData.cause[0]?.description) || `Erro ${attempt.label}`
-                console.warn(`${attempt.label} REJEITADO: ${lastError} (${responseText})`)
-                
-                // Se for erro de conta ou saldo, para tudo
-                if (mpResponse.status === 401 || lastError.toLowerCase().includes('balance') || lastError.toLowerCase().includes('limit')) break
-            }
-        } catch (err: any) {
-            console.error(`Falha técnica em ${attempt.label}: ${err.message}`)
+        if (res.ok) {
+          console.log(`Sucesso com ${attempt.label}! ID: ${data.id}`)
+          finalResponse = data
+          break
+        } else {
+          lastError = `[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`
+          console.error(`Falha na estratégia ${attempt.label}:`, lastError)
+          
+          // Se for erro de autorização absoluta, não adianta tentar outras
+          if (res.status === 401) break
         }
+      } catch (err: any) {
+        lastError = `[${attempt.label}] Erro de Rede: ${err.message}`
+        console.error(lastError)
+      }
     }
 
     if (finalResponse) {
-        await supabaseClient.from('withdrawal_requests')
-          .update({ status: 'completed', processed_at: new Date().toISOString() })
-          .eq('id', payoutId)
+      await supabaseClient.from('withdrawal_requests')
+        .update({ status: 'completed', processed_at: new Date().toISOString() })
+        .eq('id', payoutId)
 
-        return new Response(JSON.stringify({ success: true, message: 'Transferência realizada!', data: finalResponse }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+      return new Response(JSON.stringify({ success: true, message: 'Repasse realizado com sucesso!', data: finalResponse }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     } else {
-        console.error(`Falha Total: ${lastError}`)
-        await supabaseClient.from('withdrawal_requests').update({ status: 'failed', error_message: lastError }).eq('id', payoutId)
-        return new Response(JSON.stringify({ success: false, error: lastError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+      console.error(`FALHA TOTAL NO REPASSE: ${lastError}`)
+      await supabaseClient.from('withdrawal_requests').update({ status: 'failed', error_message: lastError }).eq('id', payoutId)
+      return new Response(JSON.stringify({ success: false, error: lastError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
 
   } catch (error: any) {
-    console.error('LOG ERROR:', error.message)
+    console.error('ERRO CRÍTICO:', error.message)
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
