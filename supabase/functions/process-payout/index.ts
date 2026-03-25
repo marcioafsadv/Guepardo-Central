@@ -29,21 +29,28 @@ serve(async (req) => {
       .from('withdrawal_requests')
       .select(`
         *,
-        profiles:user_id (
-          full_name,
-          phone,
-          cpf
-        )
+        profiles:user_id ( full_name, phone, cpf )
       `)
       .eq('id', payoutId)
       .single()
 
     if (payoutError || !payout) throw new Error('Solicitação de repasse não encontrada')
 
-    await supabaseClient.from('withdrawal_requests').update({ status: 'processing' }).eq('id', payoutId)
-
     const MP_ACCESS_TOKEN = Deno.env.get('MP_PAYOUT_ACCESS_TOKEN') || Deno.env.get('MP_ACCESS_TOKEN')
-    if (!MP_ACCESS_TOKEN) throw new Error('Credencial MP_PAYOUT_ACCESS_TOKEN não configurada.')
+    if (!MP_ACCESS_TOKEN) throw new Error('Credencial MP_ACCESS_TOKEN não configurada.')
+
+    // 6ª Via: Auto-identificar o Collector ID do usuário
+    let collectorId = "";
+    try {
+      const meRes = await fetch('https://api.mercadopago.com/v1/me', {
+        headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` }
+      });
+      const meData = await meRes.json();
+      collectorId = String(meData.id);
+      console.log(`Collector ID identificado: ${collectorId}`);
+    } catch (e) {
+      console.log("Aviso: Não foi possível identificar o Collector ID");
+    }
 
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
     const rawKey = (payout.pix_key || payout.withdraw_info || '').trim()
@@ -56,90 +63,61 @@ serve(async (req) => {
     else if (cleanKey.length > 11 && /^\d+$/.test(cleanKey)) keyType = 'phone'
     else keyType = 'evp'
 
-    const receiverCPF = (payout.profiles?.cpf || '').replace(/\D/g, '')
-    const identificationType = receiverCPF.length === 14 ? 'CNPJ' : 'CPF'
     const formattedPhone = keyType === 'phone' && !cleanKey.startsWith('+') ? `+55${cleanKey}` : cleanKey
 
+    const commonHeaders: any = {
+      'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
+      'Content-Type': 'application/json',
+      'X-Idempotency-Key': `payout-${payoutId}-${Date.now()}`
+    };
+    if (collectorId) commonHeaders['X-Collector-Id'] = collectorId;
+
     const attempts = [
-      // Strategy 1: Transfers (Manual / Wallet to Wallet/Pix)
-      {
-        url: 'https://api.mercadopago.com/v1/transfers',
-        label: 'MP-TRANSFERS-CLEAN',
-        method: 'POST',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          pix_key: cleanKey, // Tentativa 1: Apenas os 11 dígitos
-          description: `Repasse Guepardo - ${payoutId}`
-        }
-      },
-      // Strategy 2: Transfers (Com Formatação do Usuário)
-      {
-        url: 'https://api.mercadopago.com/v1/transfers',
-        label: 'MP-TRANSFERS-FORMATTED',
-        method: 'POST',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          pix_key: rawKey, // Tentativa 2: (11) 98749-9545 (como sugerido)
-          description: `Repasse Guepardo`
-        }
-      },
-      // Strategy 3: Transfers (Com +55)
-      {
-        url: 'https://api.mercadopago.com/v1/transfers',
-        label: 'MP-TRANSFERS-INTL',
-        method: 'POST',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          pix_key: formattedPhone, // Tentativa 3: +5511987499545
-          description: `Repasse Guepardo`
-        }
-      },
-      // Strategy 4: Money Out Payouts (Alternative Official)
-      {
-        url: 'https://api.mercadopago.com/v1/money_out/payouts',
-        label: 'MP-MONEY-OUT',
-        method: 'POST',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          payout_info: {
-             type: keyType === 'evp' ? 'random_key' : keyType,
-             value: formattedPhone
-          }
-        }
-      },
-      // Strategy 3: Payouts v1 (Tipo Simplificado)
+      // Strategy 1: Payouts v1 com Collector ID (A via mais oficial)
       {
         url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'MP-DISPERSAO-SIMPLIFIED',
+        label: 'MP-PAYOUT-WITH-ID',
         method: 'POST',
         payload: {
           amount: amount,
           payment_method_id: 'pix',
-          payout_info: {
-             type: 'pix',
-             value: cleanKey
-          }
+          payout_info: { type: 'pix', value: cleanKey }
+        }
+      },
+      // Strategy 2: Disbursements (Repasses Híbridos)
+      {
+        url: 'https://api.mercadopago.com/v1/disbursements',
+        label: 'MP-DISBURSEMENTS',
+        method: 'POST',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          pix_key: cleanKey,
+          description: `Repasse ${payoutId}`
+        }
+      },
+      // Strategy 3: Transfers (Modo Carteira com cabeçalho ID)
+      {
+        url: 'https://api.mercadopago.com/v1/transfers',
+        label: 'MP-TRANSFERS-WITH-ID',
+        method: 'POST',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          pix_key: formattedPhone,
+          description: "Repasse Guepardo"
         }
       }
     ]
 
-    let finalResponse = null
-    let errorDetails: string[] = []
+    let finalResponse = null;
+    let errorDetails: string[] = [];
 
     for (const attempt of attempts) {
-      console.log(`Tentando ${attempt.label}...`)
       try {
         const res = await fetch(attempt.url, {
           method: attempt.method,
-          headers: {
-            'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
-            'Content-Type': 'application/json',
-            'X-Idempotency-Key': `payout-${payoutId}-${attempt.label}-${Date.now()}`
-          },
+          headers: commonHeaders,
           body: JSON.stringify(attempt.payload)
         })
 
@@ -150,8 +128,7 @@ serve(async (req) => {
           finalResponse = data
           break
         } else {
-          const detail = res.ok ? `Pendente (${data.status})` : `${res.status}: ${JSON.stringify(data)}`
-          errorDetails.push(`[${attempt.label}] ${detail}`)
+          errorDetails.push(`[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`)
           if (res.status === 401 || res.status === 403) break
         }
       } catch (err: any) {
@@ -165,18 +142,12 @@ serve(async (req) => {
         .eq('id', payoutId)
       return new Response(JSON.stringify({ success: true, data: finalResponse }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     } else {
-      const lastError = errorDetails.join(' | ')
-      // Não marcamos como FAILED no banco imediatamente para permitir o fluxo manual no frontend
       return new Response(JSON.stringify({ 
         success: true, 
         manual_required: true, 
-        error: lastError,
-        message: "O Mercado Pago não autorizou o envio automático (falta de permissão na conta). Por favor, realize o PIX manualmente pelo App do Banco.",
-        payout_details: {
-           pix_key: rawKey,
-           amount: amount,
-           name: payout.profiles?.full_name
-        }
+        error: errorDetails.join(' | '),
+        message: "Falha técnica no Mercado Pago. Por favor realize o PIX manualmente.",
+        payout_details: { pix_key: rawKey, amount: amount, name: payout.profiles?.full_name }
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
   } catch (error: any) {
