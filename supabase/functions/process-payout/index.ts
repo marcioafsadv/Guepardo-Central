@@ -14,30 +14,17 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('URL_SUPABASE') || ''
     const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-    
-    if (!supabaseUrl || !supabaseKey) {
-        throw new Error(`Configuração do Supabase incompleta: URL=${!!supabaseUrl}, Key=${!!supabaseKey}`)
-    }
-
     const supabaseClient = createClient(supabaseUrl, supabaseKey)
 
-    // 0. Validar o Usuário (Manual JWT Validation)
     const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      throw new Error('Header de autorização ausente')
-    }
+    if (!authHeader) throw new Error('Header de autorização ausente')
 
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(authHeader.replace('Bearer ', ''))
-    
-    if (userError || !user) {
-      console.error('Erro de Autenticação:', userError)
-      throw new Error(`Usuário não autenticado ou token inválido: ${userError?.message || 'Sem sessão'}`)
-    }
+    if (userError || !user) throw new Error(`Usuário não autenticado: ${userError?.message}`)
 
     const { payoutId } = await req.json()
     console.log(`Iniciando processamento do repasse: ${payoutId}`)
 
-    // 1. Obter dados do repasse + Perfil com CPF
     const { data: payout, error: payoutError } = await supabaseClient
       .from('withdrawal_requests')
       .select(`
@@ -51,28 +38,17 @@ serve(async (req) => {
       .eq('id', payoutId)
       .single()
 
-    if (payoutError || !payout) {
-      throw new Error(`Solicitação de repasse não encontrada: ${payoutError?.message || 'Sem dados'}`)
-    }
+    if (payoutError || !payout) throw new Error('Solicitação de repasse não encontrada')
 
-    // 2. Marcar como processando
-    await supabaseClient
-      .from('withdrawal_requests')
-      .update({ status: 'processing' })
-      .eq('id', payoutId)
+    await supabaseClient.from('withdrawal_requests').update({ status: 'processing' }).eq('id', payoutId)
 
-    // 3. Credenciais MP
     const MP_ACCESS_TOKEN = Deno.env.get('MP_PAYOUT_ACCESS_TOKEN') || Deno.env.get('MP_ACCESS_TOKEN')
-    
-    if (!MP_ACCESS_TOKEN) {
-      throw new Error('Credencial MP_PAYOUT_ACCESS_TOKEN não configurada.')
-    }
+    if (!MP_ACCESS_TOKEN) throw new Error('Credencial MP_PAYOUT_ACCESS_TOKEN não configurada.')
 
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
     const rawKey = (payout.pix_key || payout.withdraw_info || '').trim()
     const cleanKey = rawKey.replace(/[^\d\w@.-]/g, '')
     
-    // Identificar tipo de chave
     let keyType = 'email'
     if (cleanKey.includes('@')) keyType = 'email'
     else if (cleanKey.length === 11 && /^\d+$/.test(cleanKey)) keyType = 'cpf'
@@ -80,70 +56,47 @@ serve(async (req) => {
     else if (cleanKey.length > 11 && /^\d+$/.test(cleanKey)) keyType = 'phone'
     else keyType = 'evp'
 
-    // Obter Identificação Real (Importante para evitar "Invalid identification")
     const receiverCPF = (payout.profiles?.cpf || '').replace(/\D/g, '')
-    const receiverEmail = 'financeiro@guepardo.delivery'
     const identificationType = receiverCPF.length === 14 ? 'CNPJ' : 'CPF'
-
-    console.log(`Processando R$ ${amount} para ${payout.profiles?.full_name} | Chave: ${cleanKey} | CPF: ${receiverCPF}`)
+    const formattedPhone = keyType === 'phone' && !cleanKey.startsWith('+') ? `+55${cleanKey}` : cleanKey
 
     const attempts = [
-      // Strategy 1: Dispersão Oficial (Payouts v1)
+      // Strategy 1: Transfers (Manual / Wallet to Wallet/Pix)
+      {
+        url: 'https://api.mercadopago.com/v1/transfers',
+        label: 'MP-TRANSFERS',
+        method: 'POST',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          pix_key: formattedPhone,
+          description: `Repasse Guepardo - ${payoutId}`
+        }
+      },
+      // Strategy 2: Money Out Payouts (Alternative Official)
+      {
+        url: 'https://api.mercadopago.com/v1/money_out/payouts',
+        label: 'MP-MONEY-OUT',
+        method: 'POST',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          payout_info: {
+             type: keyType === 'evp' ? 'random_key' : keyType,
+             value: formattedPhone
+          }
+        }
+      },
+      // Strategy 3: Payouts v1 (Tipo Simplificado)
       {
         url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'MP-DISPERSAO-V1',
+        label: 'MP-DISPERSAO-SIMPLIFIED',
         method: 'POST',
         payload: {
           amount: amount,
           payment_method_id: 'pix',
           payout_info: {
-             type: keyType,
-             value: keyType === 'phone' && !cleanKey.startsWith('+') ? `+${cleanKey}` : cleanKey
-          }
-        }
-      },
-      // Strategy 2: Payments API com Identificação REAL (Resolver erro 2067)
-      {
-        url: 'https://api.mercadopago.com/v1/payments',
-        label: 'MP-PAYMENTS-REAL-ID',
-        method: 'POST',
-        payload: {
-          transaction_amount: amount,
-          payment_method_id: 'pix',
-          description: `Repasse Guepardo - ${payoutId}`,
-          payer: {
-             email: receiverEmail,
-             identification: {
-                type: identificationType,
-                number: receiverCPF || '00000000000' // Backup, mas idealmente deve ter CPF
-             }
-          }
-        }
-      },
-      // Strategy 3: Wallet Payouts (Transferência Direta para Chave PIX)
-      {
-        url: 'https://api.mercadopago.com/v1/wallet_payouts',
-        label: 'MP-WALLET-PAYOUT',
-        method: 'POST',
-        payload: {
-          amount: amount,
-          payment_method_id: 'pix',
-          payout_info: {
-            type: keyType === 'evp' ? 'random_key' : keyType,
-            value: cleanKey
-          }
-        }
-      },
-      // Strategy 4: Payouts v3 (Algumas contas novas exigem v3)
-      {
-        url: 'https://api.mercadopago.com/v3/payouts',
-        label: 'MP-PAYOUTS-V3',
-        method: 'POST',
-        payload: {
-          total_amount: amount,
-          payment_method_id: 'pix',
-          payout_info: {
-             type: 'pix_key',
+             type: 'pix',
              value: cleanKey
           }
         }
@@ -154,11 +107,6 @@ serve(async (req) => {
     let errorDetails: string[] = []
 
     for (const attempt of attempts) {
-      if (attempt.label === 'MP-PAYMENTS-REAL-ID' && !receiverCPF) {
-          errorDetails.push("[MP-PAYMENTS-REAL-ID] Ignored: Sem CPF no perfil do entregador")
-          continue
-      }
-
       console.log(`Tentando ${attempt.label}...`)
       try {
         const res = await fetch(attempt.url, {
@@ -172,27 +120,18 @@ serve(async (req) => {
         })
 
         const data = await res.json()
-
-        // Validar se é um sucesso REAL de saída de dinheiro (approved/completed)
-        // Se for 'pending', no caso de PIX, geralmente é a geração de um QR Code para RECEBER
-        const isActuallyPaid = res.ok && (data.status === 'approved' || data.status === 'completed')
+        const isActuallyPaid = res.ok && (data.status === 'approved' || data.status === 'completed' || data.status === 'success')
 
         if (isActuallyPaid) {
-          console.log(`Sucesso Real com ${attempt.label}! ID: ${data.id}`)
           finalResponse = data
           break
         } else {
-          const errorMsg = res.ok 
-            ? `[${attempt.label}] Ignorado (Status Pendente/Cobrança): ${data.status}`
-            : `[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`
-          
-          errorDetails.push(errorMsg)
-          console.error(`Falha ou Pendência em ${attempt.label}:`, errorMsg)
-          
+          const detail = res.ok ? `Pendente (${data.status})` : `${res.status}: ${JSON.stringify(data)}`
+          errorDetails.push(`[${attempt.label}] ${detail}`)
           if (res.status === 401 || res.status === 403) break
         }
       } catch (err: any) {
-        errorDetails.push(`[${attempt.label}] Erro de Rede: ${err.message}`)
+        errorDetails.push(`[${attempt.label}] Erro: ${err.message}`)
       }
     }
 
@@ -200,21 +139,13 @@ serve(async (req) => {
       await supabaseClient.from('withdrawal_requests')
         .update({ status: 'completed', processed_at: new Date().toISOString() })
         .eq('id', payoutId)
-
-      return new Response(JSON.stringify({ success: true, message: 'Repasse realizado com sucesso!', data: finalResponse }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
+      return new Response(JSON.stringify({ success: true, data: finalResponse }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     } else {
       const lastError = errorDetails.join(' | ')
-      console.error(`FALHA TOTAL: ${lastError}`)
       await supabaseClient.from('withdrawal_requests').update({ status: 'failed', error_message: lastError }).eq('id', payoutId)
       return new Response(JSON.stringify({ success: false, error: lastError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     }
-
   } catch (error: any) {
-    console.error('ERRO CRÍTICO:', error.message)
-    return new Response(
-      JSON.stringify({ success: false, error: error.message }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-    )
+    return new Response(JSON.stringify({ success: false, error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
   }
 })
