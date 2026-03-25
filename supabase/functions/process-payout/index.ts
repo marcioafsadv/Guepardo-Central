@@ -65,11 +65,21 @@ serve(async (req) => {
     const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
     
     if (!MP_ACCESS_TOKEN) {
-      throw new Error('MP_ACCESS_TOKEN não configurado no Supabase')
+      throw new Error('Secret MP_ACCESS_TOKEN não encontrada. Configure no Supabase CLI.')
     }
 
-    // Gerar um idempotency key único para evitar pagamentos duplicados
-    const idempotencyKey = `payout_${payoutId}`
+    // Gerar um idempotency key único
+    const idempotencyKey = `payout_${payoutId}_${Date.now()}`
+
+    // Tratamento do valor (garantir ponto em vez de vírgula)
+    const rawAmount = String(payout.amount).replace(',', '.')
+    const amount = parseFloat(rawAmount)
+
+    if (isNaN(amount)) {
+      throw new Error(`Valor de repasse inválido: ${payout.amount}`)
+    }
+
+    console.log(`Processando repasse de R$ ${amount} para chave ${payout.pix_key || payout.withdraw_info}`)
 
     const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
@@ -79,8 +89,8 @@ serve(async (req) => {
         'X-Idempotency-Key': idempotencyKey
       },
       body: JSON.stringify({
-        transaction_amount: Number(payout.amount),
-        description: `Guepardo - Repasse Entregador: ${payout.profiles?.full_name || 'Parceiro'}`,
+        transaction_amount: amount,
+        description: `Guepardo - Repasse: ${payout.profiles?.full_name || 'Parceiro'}`,
         payment_method_id: 'pix',
         payer: {
           email: 'financeiro@guepardo.app',
@@ -91,12 +101,10 @@ serve(async (req) => {
             number: '00000000000000'
           }
         },
-        // Destinatário do PIX
         point_of_interaction: {
           linked_to: {
             type: 'pix',
             parameters: {
-               // Usando a chave PIX salva na solicitação
                pix_key: payout.pix_key || payout.withdraw_info || ''
             }
           }
@@ -104,41 +112,38 @@ serve(async (req) => {
       })
     })
 
-    // Como a API de Disburse do Mercado Pago é restrita, vamos implementar a lógica de status
-    // Se a API retornar sucesso, atualizamos para completed
-    
-    // NOTA: Para uma implementação real de "Repasse", o Mercado Pago utiliza /v1/disbursements
-    // Mas para fins de demonstração e ativação inicial, simularemos o sucesso se o token estiver presente
-    
-    const isSuccess = mpResponse.ok
+    const responseText = await mpResponse.text()
+    console.log('Resposta bruta do Mercado Pago:', responseText)
 
-    if (isSuccess) {
-      const { error: updateError } = await supabaseClient
-        .from('withdrawal_requests')
-        .update({ 
-          status: 'completed',
-          processed_at: new Date().toISOString()
-        })
-        .eq('id', payoutId)
+    let responseData: any = {}
+    try {
+      responseData = JSON.parse(responseText)
+    } catch (e) {
+      console.error('Falha ao processar JSON de resposta do MP')
+    }
 
-      if (updateError) throw updateError
-
-      return new Response(
-        JSON.stringify({ success: true, message: 'Pagamento realizado com sucesso' }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-      )
-    } else {
-      const errorData = await mpResponse.json()
-      console.error('Erro detalhado Mercado Pago:', JSON.stringify(errorData, null, 2))
-      
-      const errorMessage = errorData.message || (errorData.cause && errorData.cause[0]?.description) || 'Erro desconhecido na API do Mercado Pago'
-      
+    if (mpResponse.ok) {
+      // Atualizar para concluído
       await supabaseClient
         .from('withdrawal_requests')
         .update({ 
-          status: 'failed',
-          error_message: errorMessage
+          status: 'completed'
         })
+        .eq('id', payoutId)
+
+      return new Response(
+        JSON.stringify({ success: true, data: responseData }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
+      )
+    } else {
+      const errorMessage = responseData.message || (responseData.cause && responseData.cause[0]?.description) || 'Erro na API do Mercado Pago'
+      
+      console.error(`MP API Error (400): ${errorMessage}`)
+
+      // Tentar atualizar status para falha, mas não travar se a coluna error_message não existir
+      await supabaseClient
+        .from('withdrawal_requests')
+        .update({ status: 'failed' })
         .eq('id', payoutId)
 
       return new Response(
@@ -148,7 +153,7 @@ serve(async (req) => {
     }
 
   } catch (error: any) {
-    console.error('Erro na Edge Function:', error.message)
+    console.error('CRITICAL ERROR:', error.message)
     return new Response(
       JSON.stringify({ error: error.message }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
