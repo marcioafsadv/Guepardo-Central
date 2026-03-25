@@ -84,7 +84,6 @@ serve(async (req) => {
       pixKey = `+55${pixKey}`
     }
 
-    // LISTA DE PAYLOADS PARA TESTAR (Fallback Inteligente)
     const basePayload = {
       transaction_amount: amount,
       description: `Guepardo Repasse: ${payout.profiles?.full_name || 'Entregador'}`,
@@ -98,100 +97,103 @@ serve(async (req) => {
       }
     }
 
-    const payloadFormats = [
-      // Formato A: transaction_data.pix_key (Padrão Novo)
+    // MAPA DE TENTATIVAS (Smart Retry)
+    const attempts = [
+      // 1. Formato 'PAYOUT' (Comum em contas Business Diretas)
       {
-        ...basePayload,
-        point_of_interaction: {
-          type: 'CHECKOUT',
-          transaction_data: { pix_key: pixKey }
+        url: 'https://api.mercadopago.com/v1/payments',
+        label: 'A-PAYOUT-TYPE',
+        payload: {
+          ...basePayload,
+          point_of_interaction: { type: 'PAYOUT', transaction_data: { pix_key: pixKey } }
         }
       },
-      // Formato B: transaction_data.linked_to (Comum em contas Business)
+      // 2. Formato 'CHECKOUT' com pix_key direta (Standard)
       {
-        ...basePayload,
-        point_of_interaction: {
-          type: 'CHECKOUT',
-          transaction_data: {
-            linked_to: { type: 'pix', parameters: { pix_key: pixKey } }
-          }
+        url: 'https://api.mercadopago.com/v1/payments',
+        label: 'B-CHECKOUT-STRICT',
+        payload: {
+          ...basePayload,
+          point_of_interaction: { type: 'CHECKOUT', transaction_data: { pix_key: pixKey } }
         }
       },
-      // Formato C: linked_to direto no point_of_interaction
+      // 3. Endpoint Dedicado de Payouts (Estrutura diferente)
       {
-        ...basePayload,
-        point_of_interaction: {
-          type: 'CHECKOUT',
-          linked_to: { type: 'pix', parameters: { pix_key: pixKey } }
+        url: 'https://api.mercadopago.com/v1/payouts',
+        label: 'C-DEDICATED-PAYOUT',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          pix_data: {
+             key: pixKey,
+             key_type: pixKey.includes('@') ? 'email' : (pixKey.startsWith('+') ? 'phone' : 'cpf')
+          },
+          external_reference: payoutId
         }
+      },
+      // 4. Formato Legacy (Top level pix_key)
+      {
+        url: 'https://api.mercadopago.com/v1/payments',
+        label: 'D-LEGACY-TOP-KEY',
+        payload: { ...basePayload, pix_key: pixKey }
       }
     ]
 
     let lastError = 'Nenhum formato de API aceito'
     let finalResponse: any = null
 
-    for (let i = 0; i < payloadFormats.length; i++) {
-        const formatLabel = ['A (Standard)', 'B (Nested)', 'C (Interaction Linked)'][i]
-        const currentIdempotency = `payout_${payoutId}_v${i}_${Date.now()}`
+    for (const attempt of attempts) {
+        const currentIdempotency = `payout_${payoutId}_${attempt.label}_${Date.now()}`
+        console.log(`Tentando Estratégia ${attempt.label} em ${attempt.url}...`)
         
-        console.log(`Tentando Formato ${formatLabel} para ${pixKey}...`)
-        
-        const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
-            'Content-Type': 'application/json',
-            'X-Idempotency-Key': currentIdempotency
-          },
-          body: JSON.stringify(payloadFormats[i])
-        })
+        try {
+            const mpResponse = await fetch(attempt.url, {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
+                'Content-Type': 'application/json',
+                'X-Idempotency-Key': currentIdempotency
+              },
+              body: JSON.stringify(attempt.payload)
+            })
 
-        const responseText = await mpResponse.text()
-        let responseData: any = {}
-        try { responseData = JSON.parse(responseText); } catch (e) {}
+            const responseText = await mpResponse.text()
+            let responseData: any = {}
+            try { responseData = JSON.parse(responseText); } catch (e) {}
 
-        if (mpResponse.ok) {
-            console.log(`SUCESSO com Formato ${formatLabel}!`)
-            finalResponse = responseData
-            break
-        } else {
-            lastError = responseData.message || (responseData.cause && responseData.cause[0]?.description) || `Erro no Formato ${formatLabel}`
-            console.warn(`Formato ${formatLabel} rejeitado: ${lastError}`)
-            // Se for erro de saldo ou algo real, não adianta tentar outros formatos
-            if (lastError.toLowerCase().includes('balance') || lastError.toLowerCase().includes('insufficient')) {
+            if (mpResponse.ok) {
+                console.log(`SUCESSO com Estratégia ${attempt.label}!`)
+                finalResponse = responseData
                 break
+            } else {
+                lastError = responseData.message || (responseData.cause && responseData.cause[0]?.description) || `Erro no Formato ${attempt.label}`
+                console.warn(`Estratégia ${attempt.label} rejeitada: ${lastError}`)
+                
+                // Se for erro de PRODUTO (Saldo, Chave inexistente, etc), não adianta tentar outros formatos de JSON
+                const isAuthError = mpResponse.status === 401
+                const isBalanceError = lastError.toLowerCase().includes('balance') || lastError.toLowerCase().includes('saldo') || lastError.toLowerCase().includes('limit')
+                if (isAuthError || isBalanceError) break
             }
+        } catch (err: any) {
+            console.error(`Falha técnica na Estratégia ${attempt.label}: ${err.message}`)
         }
     }
 
     if (finalResponse) {
-        await supabaseClient
-          .from('withdrawal_requests')
-          .update({ 
-            status: 'completed',
-            processed_at: new Date().toISOString()
-          })
+        await supabaseClient.from('withdrawal_requests')
+          .update({ status: 'completed', processed_at: new Date().toISOString() })
           .eq('id', payoutId)
 
-        return new Response(
-          JSON.stringify({ success: true, message: 'Transferência automática realizada!', data: finalResponse }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
-        )
+        return new Response(JSON.stringify({ success: true, message: 'Repasse realizado!', data: finalResponse }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     } else {
-        console.error(`Falha Total: ${lastError}`)
-        
-        await supabaseClient
-          .from('withdrawal_requests')
-          .update({ 
-            status: 'failed',
-            error_message: lastError 
-          })
+        console.error(`Falha Total após todas as tentativas: ${lastError}`)
+        await supabaseClient.from('withdrawal_requests')
+          .update({ status: 'failed', error_message: lastError })
           .eq('id', payoutId)
 
-        return new Response(
-          JSON.stringify({ success: false, error: lastError }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        )
+        return new Response(JSON.stringify({ success: false, error: lastError }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
     }
 
   } catch (error: any) {
