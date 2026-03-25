@@ -63,6 +63,7 @@ serve(async (req) => {
 
     // 3. Chamar API do Mercado Pago (PIX Payout)
     const MP_ACCESS_TOKEN = Deno.env.get('MP_ACCESS_TOKEN')
+    const MP_SENDER_ID = Deno.env.get('MP_SENDER_ID') || '00000000000000' // Deve ser o CPF/CNPJ da conta pagadora
     
     if (!MP_ACCESS_TOKEN) {
       throw new Error('Secret MP_ACCESS_TOKEN não encontrada. Configure no Supabase.')
@@ -71,15 +72,12 @@ serve(async (req) => {
     // Gerar um idempotency key único
     const idempotencyKey = `payout_${payoutId}_${Date.now()}`
 
-    // Tratamento do valor (garantir ponto em vez de vírgula)
-    const rawAmount = String(payout.amount).replace(',', '.')
-    const amount = parseFloat(rawAmount)
+    // Tratamento do valor
+    const amount = parseFloat(String(payout.amount).replace(',', '.'))
+    if (isNaN(amount)) throw new Error(`Valor de repasse inválido: ${payout.amount}`)
 
-    if (isNaN(amount)) {
-      throw new Error(`Valor de repasse inválido: ${payout.amount}`)
-    }
-
-    console.log(`Processando repasse de R$ ${amount} para chave ${payout.pix_key || payout.withdraw_info}`)
+    const pixKey = payout.pix_key || payout.withdraw_info || ''
+    console.log(`Iniciando PIX de R$ ${amount} para: ${pixKey}`)
 
     const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
@@ -90,22 +88,24 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         transaction_amount: amount,
-        description: `Guepardo - Repasse: ${payout.profiles?.full_name || 'Parceiro'}`,
+        description: `Guepardo Payout: ${payout.profiles?.full_name || 'Entregador'}`,
         payment_method_id: 'pix',
         payer: {
           email: 'financeiro@guepardo.app',
           first_name: 'Guepardo',
-          last_name: 'App',
+          last_name: 'Delivery',
           identification: {
-            type: 'CNPJ',
-            number: '00000000000000'
+            type: MP_SENDER_ID.length > 11 ? 'CNPJ' : 'CPF',
+            number: MP_SENDER_ID
           }
         },
         point_of_interaction: {
+          // Ajuste fino para a API de Repasse PIX (Linked To)
+          type: 'CHECKOUT',
           linked_to: {
             type: 'pix',
             parameters: {
-               pix_key: payout.pix_key || payout.withdraw_info || ''
+               pix_key: pixKey
             }
           }
         }
