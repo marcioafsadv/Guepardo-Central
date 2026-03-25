@@ -89,7 +89,7 @@ serve(async (req) => {
 
     // ESTRATÉGIAS DE REPASSE
     const attempts = [
-      // Strategy 1: Dispersão Oficial (Payouts v1) - O MAIS PROVÁVEL
+      // Strategy 1: Dispersão Oficial (Payouts v1)
       {
         url: 'https://api.mercadopago.com/v1/payouts',
         label: 'MP-DISPERSAO-V1',
@@ -103,7 +103,21 @@ serve(async (req) => {
           }
         }
       },
-      // Strategy 2: Payments API com Operation Type: Payout (Alternativo)
+      // Strategy 2: Dispersão Oficial (Payouts v1 - Alternative field)
+      {
+        url: 'https://api.mercadopago.com/v1/payouts',
+        label: 'MP-DISPERSAO-V1-ALT',
+        method: 'POST',
+        payload: {
+          transaction_amount: amount,
+          payment_method_id: 'pix',
+          payout_info: {
+             type: keyType,
+             value: keyType === 'phone' && !cleanKey.startsWith('+') ? `+${cleanKey}` : cleanKey
+          }
+        }
+      },
+      // Strategy 3: Payments API (Disbursement format)
       {
         url: 'https://api.mercadopago.com/v1/payments',
         label: 'MP-PAYMENTS-DISBURSEMENT',
@@ -111,7 +125,6 @@ serve(async (req) => {
         payload: {
           transaction_amount: amount,
           payment_method_id: 'pix',
-          operation_type: 'payout',
           description: `Repasse Guepardo - ${payoutId}`,
           payer: {
              email: payout.profiles?.email || 'financeiro@guepardo.delivery',
@@ -119,17 +132,13 @@ serve(async (req) => {
                 type: keyType === 'cpf' || keyType === 'cnpj' ? keyType.toUpperCase() : 'CPF',
                 number: keyType === 'cpf' || keyType === 'cnpj' ? cleanKey : '00000000000'
              }
-          },
-          payout: {
-              type: keyType,
-              value: cleanKey
           }
         }
       }
     ]
 
     let finalResponse = null
-    let lastError = ''
+    let errorDetails: string[] = []
 
     for (const attempt of attempts) {
       console.log(`Tentando Estratégia: ${attempt.label}...`)
@@ -139,7 +148,7 @@ serve(async (req) => {
           headers: {
             'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
             'Content-Type': 'application/json',
-            'X-Idempotency-Key': `payout-${payoutId}-${attempt.label}`
+            'X-Idempotency-Key': `payout-${payoutId}-${attempt.label}-${Date.now()}`
           },
           body: JSON.stringify(attempt.payload)
         })
@@ -151,17 +160,21 @@ serve(async (req) => {
           finalResponse = data
           break
         } else {
-          lastError = `[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`
-          console.error(`Falha na estratégia ${attempt.label}:`, lastError)
+          const errorMsg = `[${attempt.label}] ${res.status}: ${JSON.stringify(data)}`
+          errorDetails.push(errorMsg)
+          console.error(`Falha na estratégia ${attempt.label}:`, errorMsg)
           
-          // Se for erro de autorização absoluta, não adianta tentar outras
-          if (res.status === 401) break
+          if (res.status === 401 || res.status === 403) {
+             errorDetails.push("ERRO DE PERMISSÃO: Verifique se o Access Token tem escopo de 'Payouts'.")
+             break
+          }
         }
       } catch (err: any) {
-        lastError = `[${attempt.label}] Erro de Rede: ${err.message}`
-        console.error(lastError)
+        errorDetails.push(`[${attempt.label}] Erro de Rede: ${err.message}`)
       }
     }
+
+    const lastError = errorDetails.join(' | ')
 
     if (finalResponse) {
       await supabaseClient.from('withdrawal_requests')
