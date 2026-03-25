@@ -76,75 +76,72 @@ serve(async (req) => {
     const meData = await meResponse.json()
     const collectorId = meData.id
     console.log(`Identificado Collector ID: ${collectorId}`)
-
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
-    let pixKey = (payout.pix_key || payout.withdraw_info || '').trim().replace(/[^\d\w@.-]/g, '')
+    const rawKey = (payout.pix_key || payout.withdraw_info || '').trim().replace(/[^\d\w@.-]/g, '')
+    const phoneNoPlus = rawKey.length >= 10 && rawKey.length <= 11 ? `55${rawKey}` : rawKey
+    const phoneWithPlus = rawKey.length >= 10 && rawKey.length <= 11 ? `+55${rawKey}` : rawKey
 
-    if (/^\d{10,11}$/.test(pixKey)) {
-      pixKey = `+55${pixKey}`
-    }
-
-    const basePayload = {
-      transaction_amount: amount,
-      description: `Guepardo Repasse: ${payout.profiles?.full_name || 'Entregador'}`,
-      payment_method_id: 'pix',
-      payer: {
-        email: 'financeiro@guepardo.app',
-        identification: {
-          type: MP_SENDER_ID.length > 11 ? 'CNPJ' : 'CPF',
-          number: MP_SENDER_ID
-        }
-      }
-    }
-
-    // MAPA DE TENTATIVAS (Smart Retry)
+    // ESTRATÉGIAS PARA TESTAR (Focando na C que foi a única reconhecida)
     const attempts = [
-      // 1. Formato 'PAYOUT' (Comum em contas Business Diretas)
-      {
-        url: 'https://api.mercadopago.com/v1/payments',
-        label: 'A-PAYOUT-TYPE',
-        payload: {
-          ...basePayload,
-          point_of_interaction: { type: 'PAYOUT', transaction_data: { pix_key: pixKey } }
-        }
-      },
-      // 2. Formato 'CHECKOUT' com pix_key direta (Standard)
-      {
-        url: 'https://api.mercadopago.com/v1/payments',
-        label: 'B-CHECKOUT-STRICT',
-        payload: {
-          ...basePayload,
-          point_of_interaction: { type: 'CHECKOUT', transaction_data: { pix_key: pixKey } }
-        }
-      },
-      // 3. Endpoint Dedicado de Payouts (Estrutura diferente)
+      // 1. Estratégia C.1: Payout Info com Value (Comum no Brasil)
       {
         url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'C-DEDICATED-PAYOUT',
+        label: 'C1-PAYOUT-VALUE',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          payout_info: {
+             type: rawKey.includes('@') ? 'email' : (rawKey.length > 11 ? 'cnpj' : (rawKey.length === 11 ? 'phone' : 'evp')),
+             value: rawKey.includes('@') ? rawKey : phoneNoPlus
+          }
+        }
+      },
+      // 2. Estratégia C.2: Payout Info com Value (Com + no Telefone)
+      {
+        url: 'https://api.mercadopago.com/v1/payouts',
+        label: 'C2-PAYOUT-VALUE-PLUS',
+        payload: {
+          amount: amount,
+          payment_method_id: 'pix',
+          payout_info: {
+             type: rawKey.includes('@') ? 'email' : (rawKey.length > 11 ? 'cnpj' : (rawKey.length === 11 ? 'phone' : 'evp')),
+             value: rawKey.includes('@') ? rawKey : phoneWithPlus
+          }
+        }
+      },
+      // 3. Estratégia C.3: Pix Data com phone_number (Variação detectada)
+      {
+        url: 'https://api.mercadopago.com/v1/payouts',
+        label: 'C3-PIX-DATA-VAR',
         payload: {
           amount: amount,
           payment_method_id: 'pix',
           pix_data: {
-             key: pixKey,
-             key_type: pixKey.includes('@') ? 'email' : (pixKey.startsWith('+') ? 'phone' : 'cpf')
-          },
-          external_reference: payoutId
+             key: phoneWithPlus,
+             key_type: rawKey.includes('@') ? 'email' : 'phone_number'
+          }
         }
       },
-      // 4. Formato Legacy (Top level pix_key)
+      // 4. Fallback A-PAYOUT: Tentando o modo PAYOUT no v1/payments denovo mas com payload limpo
       {
         url: 'https://api.mercadopago.com/v1/payments',
-        label: 'D-LEGACY-TOP-KEY',
-        payload: { ...basePayload, pix_key: pixKey }
+        label: 'A-CLEAN-PAYOUT',
+        payload: {
+          transaction_amount: amount,
+          payment_method_id: 'pix',
+          description: `Guepardo: ${payoutId}`,
+          payer: { email: 'financeiro@guepardo.app' },
+          point_of_interaction: { type: 'PAYOUT', transaction_data: { pix_key: phoneWithPlus } }
+        }
       }
     ]
 
-    let lastError = 'Nenhum formato de API aceito'
+    let lastError = 'Nenhum formato aceito'
     let finalResponse: any = null
 
     for (const attempt of attempts) {
         const currentIdempotency = `payout_${payoutId}_${attempt.label}_${Date.now()}`
-        console.log(`Tentando Estratégia ${attempt.label} em ${attempt.url}...`)
+        console.log(`Tentando ${attempt.label} em ${attempt.url} para ${rawKey}...`)
         
         try {
             const mpResponse = await fetch(attempt.url, {
@@ -162,20 +159,18 @@ serve(async (req) => {
             try { responseData = JSON.parse(responseText); } catch (e) {}
 
             if (mpResponse.ok) {
-                console.log(`SUCESSO com Estratégia ${attempt.label}!`)
+                console.log(`SUCESSO com ${attempt.label}!`)
                 finalResponse = responseData
                 break
             } else {
-                lastError = responseData.message || (responseData.cause && responseData.cause[0]?.description) || `Erro no Formato ${attempt.label}`
-                console.warn(`Estratégia ${attempt.label} rejeitada: ${lastError}`)
+                lastError = responseData.message || (responseData.cause && responseData.cause[0]?.description) || `Erro ${attempt.label}`
+                console.warn(`${attempt.label} REJEITADO: ${lastError} (${responseText})`)
                 
-                // Se for erro de PRODUTO (Saldo, Chave inexistente, etc), não adianta tentar outros formatos de JSON
-                const isAuthError = mpResponse.status === 401
-                const isBalanceError = lastError.toLowerCase().includes('balance') || lastError.toLowerCase().includes('saldo') || lastError.toLowerCase().includes('limit')
-                if (isAuthError || isBalanceError) break
+                // Se for erro de conta ou saldo, para tudo
+                if (mpResponse.status === 401 || lastError.toLowerCase().includes('balance') || lastError.toLowerCase().includes('limit')) break
             }
         } catch (err: any) {
-            console.error(`Falha técnica na Estratégia ${attempt.label}: ${err.message}`)
+            console.error(`Falha técnica em ${attempt.label}: ${err.message}`)
         }
     }
 
@@ -184,16 +179,12 @@ serve(async (req) => {
           .update({ status: 'completed', processed_at: new Date().toISOString() })
           .eq('id', payoutId)
 
-        return new Response(JSON.stringify({ success: true, message: 'Repasse realizado!', data: finalResponse }),
+        return new Response(JSON.stringify({ success: true, message: 'Transferência realizada!', data: finalResponse }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 })
     } else {
-        console.error(`Falha Total após todas as tentativas: ${lastError}`)
-        await supabaseClient.from('withdrawal_requests')
-          .update({ status: 'failed', error_message: lastError })
-          .eq('id', payoutId)
-
-        return new Response(JSON.stringify({ success: false, error: lastError }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
+        console.error(`Falha Total: ${lastError}`)
+        await supabaseClient.from('withdrawal_requests').update({ status: 'failed', error_message: lastError }).eq('id', payoutId)
+        return new Response(JSON.stringify({ success: false, error: lastError }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 })
     }
 
   } catch (error: any) {
