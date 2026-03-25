@@ -75,8 +75,8 @@ serve(async (req) => {
     })
     const meData = await meResponse.json()
     const collectorId = meData.id
+    console.log(`Identificado Collector ID: ${collectorId}`)
 
-    const idempotencyKey = `payout_${payoutId}_${Date.now()}`
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
     let pixKey = (payout.pix_key || payout.withdraw_info || '').trim().replace(/[^\d\w@.-]/g, '')
 
@@ -84,39 +84,87 @@ serve(async (req) => {
       pixKey = `+55${pixKey}`
     }
 
-    console.log(`Iniciando Repasse Profissional (Disbursements): R$ ${amount} para ${pixKey} (Collector: ${collectorId})`)
-
-    // TENTATIVA: Endpoint de Disbursements (Payouts de Empresa)
-    const mpResponse = await fetch('https://api.mercadopago.com/v1/disbursements', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
-        'Content-Type': 'application/json',
-        'X-Idempotency-Key': idempotencyKey
-      },
-      body: JSON.stringify({
-        amount: amount,
-        collector_id: collectorId,
-        external_reference: payoutId,
-        payment_method_id: 'pix',
-        pix_data: {
-          key: pixKey,
-          key_type: pixKey.includes('@') ? 'email' : (pixKey.startsWith('+') ? 'phone' : 'cpf')
+    // LISTA DE PAYLOADS PARA TESTAR (Fallback Inteligente)
+    const basePayload = {
+      transaction_amount: amount,
+      description: `Guepardo Repasse: ${payout.profiles?.full_name || 'Entregador'}`,
+      payment_method_id: 'pix',
+      payer: {
+        email: 'financeiro@guepardo.app',
+        identification: {
+          type: MP_SENDER_ID.length > 11 ? 'CNPJ' : 'CPF',
+          number: MP_SENDER_ID
         }
-      })
-    })
-
-    const responseText = await mpResponse.text()
-    console.log('Resposta bruta do Mercado Pago:', responseText)
-
-    let responseData: any = {}
-    try {
-      responseData = JSON.parse(responseText)
-    } catch (e) {
-      console.error('Falha ao processar JSON de resposta do MP')
+      }
     }
 
-    if (mpResponse.ok) {
+    const payloadFormats = [
+      // Formato A: transaction_data.pix_key (Padrão Novo)
+      {
+        ...basePayload,
+        point_of_interaction: {
+          type: 'CHECKOUT',
+          transaction_data: { pix_key: pixKey }
+        }
+      },
+      // Formato B: transaction_data.linked_to (Comum em contas Business)
+      {
+        ...basePayload,
+        point_of_interaction: {
+          type: 'CHECKOUT',
+          transaction_data: {
+            linked_to: { type: 'pix', parameters: { pix_key: pixKey } }
+          }
+        }
+      },
+      // Formato C: linked_to direto no point_of_interaction
+      {
+        ...basePayload,
+        point_of_interaction: {
+          type: 'CHECKOUT',
+          linked_to: { type: 'pix', parameters: { pix_key: pixKey } }
+        }
+      }
+    ]
+
+    let lastError = 'Nenhum formato de API aceito'
+    let finalResponse: any = null
+
+    for (let i = 0; i < payloadFormats.length; i++) {
+        const formatLabel = ['A (Standard)', 'B (Nested)', 'C (Interaction Linked)'][i]
+        const currentIdempotency = `payout_${payoutId}_v${i}_${Date.now()}`
+        
+        console.log(`Tentando Formato ${formatLabel} para ${pixKey}...`)
+        
+        const mpResponse = await fetch('https://api.mercadopago.com/v1/payments', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
+            'Content-Type': 'application/json',
+            'X-Idempotency-Key': currentIdempotency
+          },
+          body: JSON.stringify(payloadFormats[i])
+        })
+
+        const responseText = await mpResponse.text()
+        let responseData: any = {}
+        try { responseData = JSON.parse(responseText); } catch (e) {}
+
+        if (mpResponse.ok) {
+            console.log(`SUCESSO com Formato ${formatLabel}!`)
+            finalResponse = responseData
+            break
+        } else {
+            lastError = responseData.message || (responseData.cause && responseData.cause[0]?.description) || `Erro no Formato ${formatLabel}`
+            console.warn(`Formato ${formatLabel} rejeitado: ${lastError}`)
+            // Se for erro de saldo ou algo real, não adianta tentar outros formatos
+            if (lastError.toLowerCase().includes('balance') || lastError.toLowerCase().includes('insufficient')) {
+                break
+            }
+        }
+    }
+
+    if (finalResponse) {
         await supabaseClient
           .from('withdrawal_requests')
           .update({ 
@@ -126,23 +174,22 @@ serve(async (req) => {
           .eq('id', payoutId)
 
         return new Response(
-          JSON.stringify({ success: true, message: 'Repasse profissional realizado!', data: responseData }),
+          JSON.stringify({ success: true, message: 'Transferência automática realizada!', data: finalResponse }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
         )
     } else {
-        const errorMsg = responseData.message || (responseData.cause && responseData.cause[0]?.description) || 'Erro na API de Repasses'
-        console.error(`Falha no Repasse: ${errorMsg}`)
+        console.error(`Falha Total: ${lastError}`)
         
         await supabaseClient
           .from('withdrawal_requests')
           .update({ 
             status: 'failed',
-            error_message: errorMsg 
+            error_message: lastError 
           })
           .eq('id', payoutId)
 
         return new Response(
-          JSON.stringify({ success: false, error: errorMsg }),
+          JSON.stringify({ success: false, error: lastError }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
         )
     }
