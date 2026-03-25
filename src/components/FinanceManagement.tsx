@@ -252,7 +252,7 @@ const FinanceManagement = () => {
                 throw new Error('Sessão expirada. Por favor, faça login novamente.');
             }
 
-            const { error } = await supabase.functions.invoke('process-payout', {
+            const { data, error } = await supabase.functions.invoke('process-payout', {
                 body: { payoutId }
             });
             
@@ -260,14 +260,17 @@ const FinanceManagement = () => {
                 throw new Error(error.message || 'Erro ao processar pagamento');
             }
 
-            // Sucesso
+            // Sucesso (Pode ser automático ou solicitação de PIX manual)
+            if (data?.manual_required) {
+                alert(data.message); // Exibe o aviso que o PIX deve ser manual
+            }
+
             setPayouts(prev => prev.map(p => 
                 p.id === payoutId 
                     ? { ...p, status: 'completed', processed_at: new Date().toISOString() } 
                     : p
             ));
             
-            // Recarrega dados para manter tudo atualizado
             void fetchPayouts();
             void fetchFinanceData();
 
