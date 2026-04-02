@@ -275,9 +275,9 @@ const FinanceManagement = () => {
 
             // Sucesso (Pode ser automático ou solicitação de PIX manual)
             if (data?.manual_required) {
-                setManualPayoutData({ ...data.payout_details, id: payoutId });
+                setManualPayoutData({ ...data.payout_details, id: payoutId, error: data.error });
             } else {
-                alert(`Repasse realizado com sucesso! ID Mercado Pago: ${data?.data?.id || 'N/A'}`);
+                alert(`Repasse realizado com sucesso! ID Transação Asaas: ${data?.data?.id || 'N/A'}`);
             }
 
             setPayouts(prev => prev.map(p => 
@@ -958,7 +958,7 @@ const FinanceManagement = () => {
                             </div>
                             <div className="space-y-2">
                                 <h2 className="text-2xl font-black text-white uppercase italic">Pagamento Manual Necessário</h2>
-                                <p className="text-xs text-[#A8A29E] font-bold leading-relaxed">O Mercado Pago não autorizou o envio automático por falta de permissão na conta. Por favor, realize o PIX manualmente:</p>
+                                <p className="text-xs text-[#A8A29E] font-bold leading-relaxed">O Asaas retornou um impedimento para o envio automático: <span className="text-white font-black">{manualPayoutData.error || 'Verifique o saldo ou a ativação da conta'}</span>. Por favor, realize o PIX manualmente:</p>
                             </div>
                             
                             <div className="w-full space-y-4 bg-black/40 p-6 rounded-3xl border border-white/5">

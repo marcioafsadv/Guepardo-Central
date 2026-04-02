@@ -6,13 +6,43 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
+function getPixKeyType(key: string): { type: string, key: string } {
+  const cleanKey = key.replace(/[^\d\w@.-]/g, '')
+  
+  // 1. E-mail
+  if (cleanKey.includes('@')) return { type: 'EMAIL', key: cleanKey }
+  
+  // 2. CNPJ (14 dígitos)
+  if (/^\d{14}$/.test(cleanKey)) return { type: 'CNPJ', key: cleanKey }
+  
+  // 3. Telefone ou CPF (ambos com 11 dígitos)
+  if (cleanKey.length === 11) {
+    // Se começa com DDD (11-99) e o terceiro dígito é 9, é celular
+    if (/^[1-9][1-9]9/.test(cleanKey)) {
+      return { type: 'PHONE', key: `+55${cleanKey}` }
+    }
+    // Caso contrário, assumimos CPF
+    return { type: 'CPF', key: cleanKey }
+  }
+  
+  // 4. Telefone fixo com DDD (10 dígitos)
+  if (cleanKey.length === 10 && /^[1-9][1-9]/.test(cleanKey)) {
+    return { type: 'PHONE', key: `+55${cleanKey}` }
+  }
+  
+  return { type: 'EVP', key: cleanKey } // Chave aleatória
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
 
-  const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('URL_SUPABASE') || ''
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
   const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
   const supabaseClient = createClient(supabaseUrl, supabaseKey)
   
+  const ASAAS_API_KEY = Deno.env.get('ASAAS_API_KEY')
+  const ASAAS_API_URL = Deno.env.get('ASAAS_API_URL') || 'https://api.asaas.com/v3'
+
   let currentPayoutId = null
 
   try {
@@ -24,114 +54,87 @@ serve(async (req) => {
 
     const { payoutId } = await req.json()
     currentPayoutId = payoutId
-    console.log(`[START] Payout ID: ${payoutId}`)
+    console.log(`[START] Asaas Payout ID: ${payoutId}`)
 
-    // 1. Marcar como processando no banco para evitar cliques duplos
+    // 1. Marcar como processando
     await supabaseClient.from('withdrawal_requests').update({ status: 'processing' }).eq('id', payoutId)
 
-    // 2. Buscar dados (com timeout manual de 5s para o banco)
+    // 2. Buscar dados do repasse e do perfil do entregador
     const { data: payout, error: payoutError } = await supabaseClient
       .from('withdrawal_requests')
       .select('*, profiles:user_id(full_name, phone, cpf)')
       .eq('id', payoutId)
       .single()
 
-    if (payoutError || !payout) throw new Error('Repasse não encontrado ou erro de permissão.')
-
-    const MP_ACCESS_TOKEN = Deno.env.get('MP_PAYOUT_ACCESS_TOKEN') || Deno.env.get('MP_ACCESS_TOKEN')
-    if (!MP_ACCESS_TOKEN) throw new Error('Token MP não configurado.')
-
-    // 3. Auto-ID do Collector (Com Timeout de 5s)
-    let collectorId = ""
-    try {
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 5000)
-      const meRes = await fetch('https://api.mercadopago.com/v1/me', {
-        headers: { 'Authorization': `Bearer ${MP_ACCESS_TOKEN}` },
-        signal: controller.signal
-      })
-      clearTimeout(timeoutId)
-      const meData = await meRes.json()
-      collectorId = String(meData.id)
-      console.log(`Collector ID: ${collectorId}`)
-    } catch (e) { console.log("Aviso: Falha no Auto-ID") }
+    if (payoutError || !payout) throw new Error('Repasse não encontrado.')
 
     const amount = parseFloat(String(payout.amount).replace(',', '.'))
     const rawKey = (payout.pix_key || payout.withdraw_info || '').trim()
-    const cleanKey = rawKey.replace(/[^\d\w@.-]/g, '')
-    const formattedPhone = (cleanKey.length >= 10 && /^\d+$/.test(cleanKey) && !cleanKey.startsWith('+')) ? `+55${cleanKey}` : cleanKey
+    const { type: pixType, key: cleanKey } = getPixKeyType(rawKey)
 
-    const commonHeaders: any = {
-      'Authorization': `Bearer ${MP_ACCESS_TOKEN}`,
-      'Content-Type': 'application/json',
-      'X-Idempotency-Key': `payout-${payoutId}-${Date.now()}`
-    }
-    if (collectorId) commonHeaders['X-Collector-Id'] = collectorId
+    console.log(`Tentando transferência Asaas: R$ ${amount} para chave ${pixType}: ${cleanKey}`)
 
-    const attempts = [
-      {
-        url: 'https://api.mercadopago.com/v1/payouts',
-        label: 'STRAT-PAYOUT',
-        method: 'POST',
-        payload: { amount, payment_method_id: 'pix', payout_info: { type: 'pix', value: cleanKey } }
+    // 3. Executar transferência no Asaas
+    const res = await fetch(`${ASAAS_API_URL}/transfers`, {
+      method: 'POST',
+      headers: {
+        'access_token': ASAAS_API_KEY || '',
+        'Content-Type': 'application/json'
       },
-      {
-        url: 'https://api.mercadopago.com/v1/transfers',
-        label: 'STRAT-TRANSFER',
-        method: 'POST',
-        payload: { amount, payment_method_id: 'pix', pix_key: formattedPhone }
-      }
-    ]
+      body: JSON.stringify({
+        value: amount,
+        pixAddressKey: cleanKey,
+        pixAddressKeyType: pixType,
+        description: `Repasse Entregador - Guepardo Central (Ref: ${payoutId})`
+      })
+    })
 
-    let finalResponse = null
-    let errorDetails: string[] = []
+    const data = await res.json()
 
-    for (const attempt of attempts) {
-      console.log(`Tentando ${attempt.label}...`)
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 10000) // 10s per attempt
-      
-      try {
-        const res = await fetch(attempt.url, {
-          method: attempt.method,
-          headers: commonHeaders,
-          body: JSON.stringify(attempt.payload),
-          signal: controller.signal
+    if (res.ok && (data.status === 'DONE' || data.status === 'AWAITING_APPROVAL' || data.status === 'PENDING' || data.status === 'BANK_PROCESSING')) {
+      // Sucesso ou Pendente
+      await supabaseClient
+        .from('withdrawal_requests')
+        .update({ 
+          status: 'completed', 
+          processed_at: new Date().toISOString(),
+          error_message: null
         })
-        clearTimeout(timeoutId)
-        const data = await res.json()
-        const isPaid = res.ok && (data.status === 'approved' || data.status === 'completed' || data.status === 'success')
+        .eq('id', payoutId)
 
-        if (isPaid) {
-          finalResponse = data
-          break
-        } else {
-          errorDetails.push(`${attempt.label}: ${res.status}`)
-        }
-      } catch (err: any) {
-        errorDetails.push(`${attempt.label}: Timeout/Erro`)
-      }
-    }
-
-    if (finalResponse) {
-      await supabaseClient.from('withdrawal_requests').update({ status: 'completed', processed_at: new Date().toISOString() }).eq('id', payoutId)
-      return new Response(JSON.stringify({ success: true, data: finalResponse }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      return new Response(JSON.stringify({ 
+        success: true, 
+        data: data,
+        message: `Repasse enviado via Asaas! Status: ${data.status}`
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     } else {
       // Falha automática -> Ativar Manual Fallback
+      let errorMsg = data.errors?.[0]?.description || data.error || 'Erro desconhecido na API do Asaas'
+      console.error(`Falha Asaas: ${errorMsg}`)
+      
       return new Response(JSON.stringify({ 
         success: true, 
         manual_required: true, 
-        error: errorDetails.join(' | '),
-        payout_details: { pix_key: rawKey, amount: amount, name: payout.profiles?.full_name || 'Entregador' }
+        error: errorMsg,
+        payout_details: { 
+          pix_key: rawKey, 
+          amount: amount, 
+          name: payout.profiles?.full_name || 'Entregador' 
+        }
       }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
   } catch (error: any) {
-    console.error(`Erro Fatal: ${error.message}`)
+    console.error(`Erro Fatal Payout: ${error.message}`)
     if (currentPayoutId) {
-       // Se deu erro fatal, volta para pendente para não travar a lista
-       await supabaseClient.from('withdrawal_requests').update({ status: 'pending', error_message: error.message }).eq('id', currentPayoutId)
+       await supabaseClient
+        .from('withdrawal_requests')
+        .update({ status: 'pending', error_message: error.message })
+        .eq('id', currentPayoutId)
     }
-    return new Response(JSON.stringify({ success: false, error: error.message }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    return new Response(JSON.stringify({ success: false, error: error.message }), { 
+      status: 400,
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+    })
   }
 })

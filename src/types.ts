@@ -13,7 +13,7 @@ export interface Store {
     company_name?: string;
     document?: string;
     status?: 'open' | 'closed' | 'paused' | string;
-    balance?: number;
+    wallet_balance?: number;
     cancel_rate?: number;
     tipo_pessoa?: string;
     is_active?: boolean;

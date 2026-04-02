@@ -18,7 +18,10 @@ import {
     Calendar,
     Phone,
     CheckCircle2,
-    AlertCircle
+    AlertCircle,
+    Copy,
+    Check,
+    Loader2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Store as StoreType, Delivery } from '../types';
@@ -321,6 +324,148 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
 };
 
 
+interface RechargeModalProps {
+    store: StoreType;
+    onClose: () => void;
+}
+
+const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
+    const [amount, setAmount] = useState('20.00');
+    const [loading, setLoading] = useState(false);
+    const [pixData, setPixData] = useState<{ pixCode: string; pixImage: string; amount: number } | null>(null);
+    const [copied, setCopied] = useState(false);
+
+    const handleCreateCharge = async () => {
+        const numAmount = parseFloat(amount);
+        if (isNaN(numAmount) || numAmount < 20) {
+            alert('O valor mínimo para recarga é R$ 20,00');
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const { data, error } = await supabase.functions.invoke('asaas-create-charge', {
+                body: { storeId: store.id, amount: numAmount }
+            });
+
+            if (error) throw error;
+            if (!data.success) throw new Error(data.error);
+
+            setPixData(data);
+        } catch (err: any) {
+            console.error('Erro ao gerar cobrança:', err);
+            alert(`Erro: ${err.message}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const copyToClipboard = () => {
+        if (!pixData) return;
+        navigator.clipboard.writeText(pixData.pixCode);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    return (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300">
+            <div className="bg-guepardo-brown-dark border border-white/10 w-full max-w-md rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 p-8">
+                <div className="flex items-center justify-between mb-8">
+                    <div className="flex items-center gap-3">
+                        <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-2xl border border-emerald-500/20">
+                            <Wallet className="w-6 h-6" />
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-white tracking-tight uppercase">Recarregar Saldo</h3>
+                            <p className="text-[10px] font-black text-emerald-500/50 uppercase tracking-widest leading-none mt-1">Crédito Instantâneo via PIX</p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="p-2 text-[#A8A29E] hover:text-white transition-colors">
+                        <X className="w-6 h-6" />
+                    </button>
+                </div>
+
+                {!pixData ? (
+                    <div className="space-y-6">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Valor da Recarga (Mín. R$ 20,00)</label>
+                            <div className="relative">
+                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-emerald-500">R$</span>
+                                <input
+                                    type="number"
+                                    step="0.01"
+                                    min="20"
+                                    value={amount}
+                                    onChange={(e) => setAmount(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-2xl font-black text-white focus:outline-none focus:border-emerald-500/50 transition-all"
+                                    placeholder="0,00"
+                                />
+                            </div>
+                        </div>
+
+                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
+                            <p className="text-[10px] font-bold text-[#A8A29E] uppercase leading-relaxed">
+                                <Info className="w-3 h-3 inline mr-1 text-guepardo-orange" />
+                                O saldo será liberado automaticamente após a confirmação do pagamento pelo Asaas.
+                            </p>
+                        </div>
+
+                        <button
+                            onClick={handleCreateCharge}
+                            disabled={loading}
+                            className="w-full py-5 bg-brand-gradient rounded-2xl font-black text-white text-lg shadow-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-tighter"
+                        >
+                            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Activity className="w-6 h-6" />}
+                            Gerar PIX de Recarga
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex flex-col items-center text-center space-y-6">
+                        <div className="relative p-4 bg-white rounded-[2rem] shadow-2xl">
+                            <img 
+                                src={`data:image/png;base64,${pixData.pixImage}`} 
+                                alt="QR Code PIX" 
+                                className="w-48 h-48"
+                            />
+                            <div className="absolute inset-0 border-[12px] border-white rounded-[2rem] pointer-events-none"></div>
+                        </div>
+
+                        <div className="space-y-1">
+                            <p className="text-sm font-black text-white uppercase tracking-widest">Total a Pagar</p>
+                            <p className="text-4xl font-black text-emerald-400">R$ {pixData.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        </div>
+
+                        <button
+                            onClick={copyToClipboard}
+                            className={cn(
+                                "w-full py-4 rounded-2xl font-black text-sm flex items-center justify-center gap-3 transition-all border uppercase tracking-widest",
+                                copied 
+                                    ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" 
+                                    : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+                            )}
+                        >
+                            {copied ? (
+                                <><Check className="w-5 h-5" /> Copiado!</>
+                            ) : (
+                                <><Copy className="w-5 h-5" /> Copiar Código PIX</>
+                            )}
+                        </button>
+
+                        <p className="text-[10px] font-bold text-[#A8A29E] uppercase">
+                            Após o pagamento, esta janela fechará automaticamente assim que o saldo cair. 
+                            (Geralmente em menos de 1 minuto).
+                        </p>
+                        
+                        <button onClick={() => setPixData(null)} className="text-xs font-bold text-[#57534E] hover:text-[#A8A29E] transition-colors uppercase tracking-widest underline">
+                            Alterar Valor
+                        </button>
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
 const MerchantManagement = () => {
     const [stores, setStores] = useState<StoreType[]>([]);
     const [deliveries, setDeliveries] = useState<Delivery[]>([]);
@@ -329,6 +474,7 @@ const MerchantManagement = () => {
     const [statusFilter, setStatusFilter] = useState('all');
     const [onboardingFilter, setOnboardingFilter] = useState('all');
     const [selectedStore, setSelectedStore] = useState<StoreType | null>(null);
+    const [rechargeStore, setRechargeStore] = useState<StoreType | null>(null);
     const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
     const fetchData = useCallback(async () => {
@@ -488,7 +634,7 @@ const MerchantManagement = () => {
         };
     }, { completed: 0, cancelled: 0, active: 0 });
 
-    const totalBalance = stores.reduce((acc, store) => acc + (store.balance || 0), 0);
+    const totalBalance = stores.reduce((acc, store) => acc + (store.wallet_balance || 0), 0);
 
     return (
         <div className="space-y-8 animate-in fade-in duration-700">
@@ -675,6 +821,13 @@ const MerchantManagement = () => {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button
+                                            onClick={() => setRechargeStore(store)}
+                                            className="shrink-0 p-3 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-2xl hover:bg-emerald-500/20 transition-all shadow-inner hover:scale-110"
+                                            title="Recarregar Saldo"
+                                        >
+                                            <Wallet className="w-5 h-5" />
+                                        </button>
+                                        <button
                                             onClick={() => setSelectedStore(store)}
                                             className={cn(
                                                 "shrink-0 p-3 rounded-2xl transition-all shadow-inner border hover:scale-110",
@@ -759,6 +912,13 @@ const MerchantManagement = () => {
                     onOnboardingUpdate={(status, notes) => handleUpdateOnboarding(selectedStore.id, status, notes)}
                     onStatusUpdate={(isOpen) => toggleIsActive(selectedStore.id, isOpen)}
                     onPauseUpdate={(status) => togglePause(selectedStore.id, status)}
+                />
+            )}
+            {/* Recharge Modal */}
+            {rechargeStore && (
+                <RechargeModal
+                    store={rechargeStore}
+                    onClose={() => setRechargeStore(null)}
                 />
             )}
         </div>
