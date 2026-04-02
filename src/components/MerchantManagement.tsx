@@ -334,6 +334,31 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
     const [loading, setLoading] = useState(false);
     const [pixData, setPixData] = useState<{ pixCode: string; pixImage: string; amount: number } | null>(null);
     const [copied, setCopied] = useState(false);
+    const [activeTab, setActiveTab] = useState<'automated' | 'manual'>('automated');
+    const [manualPixConfig, setManualPixConfig] = useState<{ pix_key?: string; bank_name?: string; receiver_name?: string } | null>(null);
+
+    useEffect(() => {
+        const fetchConfig = async () => {
+            try {
+                const { data } = await supabase
+                    .from('guepardo_system_settings')
+                    .select('value')
+                    .eq('key', 'manual_pix_config')
+                    .single();
+                
+                if (data && data.value) {
+                    setManualPixConfig(data.value);
+                } else {
+                    const saved = localStorage.getItem('manual_pix_config');
+                    if (saved) setManualPixConfig(JSON.parse(saved));
+                }
+            } catch (e) {
+                const saved = localStorage.getItem('manual_pix_config');
+                if (saved) setManualPixConfig(JSON.parse(saved));
+            }
+        };
+        fetchConfig();
+    }, []);
 
     const handleCreateCharge = async () => {
         const numAmount = parseFloat(amount);
@@ -377,7 +402,7 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
                         </div>
                         <div>
                             <h3 className="text-xl font-black text-white tracking-tight uppercase">Recarregar Saldo</h3>
-                            <p className="text-[10px] font-black text-emerald-500/50 uppercase tracking-widest leading-none mt-1">Crédito Instantâneo via PIX</p>
+                            <p className="text-[10px] font-black text-emerald-500/50 uppercase tracking-widest leading-none mt-1">Crédito via PIX</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-[#A8A29E] hover:text-white transition-colors">
@@ -385,39 +410,104 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
                     </button>
                 </div>
 
+                {!pixData && (
+                    <div className="flex p-1 bg-black/40 rounded-2xl border border-white/5 mb-8">
+                        <button 
+                            onClick={() => setActiveTab('automated')}
+                            className={cn(
+                                "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
+                                activeTab === 'automated' ? "bg-white/10 text-white shadow-sm" : "text-[#A8A29E] hover:text-white"
+                            )}
+                        >
+                            Automático (Taxa R$ 1,99)
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('manual')}
+                            className={cn(
+                                "flex-1 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl transition-all",
+                                activeTab === 'manual' ? "bg-emerald-500/20 text-emerald-400 shadow-sm" : "text-[#A8A29E] hover:text-white"
+                            )}
+                        >
+                            Manual (Grátis)
+                        </button>
+                    </div>
+                )}
+
                 {!pixData ? (
                     <div className="space-y-6">
-                        <div className="space-y-2">
-                            <label className="text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Valor da Recarga (Mín. R$ 20,00)</label>
-                            <div className="relative">
-                                <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-emerald-500">R$</span>
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    min="20"
-                                    value={amount}
-                                    onChange={(e) => setAmount(e.target.value)}
-                                    className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-2xl font-black text-white focus:outline-none focus:border-emerald-500/50 transition-all"
-                                    placeholder="0,00"
-                                />
+                        {activeTab === 'automated' ? (
+                            <>
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Valor da Recarga (Mín. R$ 20,00)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-emerald-500">R$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="20"
+                                            value={amount}
+                                            onChange={(e) => setAmount(e.target.value)}
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-2xl font-black text-white focus:outline-none focus:border-emerald-500/50 transition-all"
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
+                                    <p className="text-[10px] font-bold text-[#A8A29E] uppercase leading-relaxed">
+                                        <Info className="w-3 h-3 inline mr-1 text-guepardo-orange" />
+                                        O saldo será liberado automaticamente após a confirmação do pagamento pelo Asaas.
+                                    </p>
+                                </div>
+
+                                <button
+                                    onClick={handleCreateCharge}
+                                    disabled={loading}
+                                    className="w-full py-5 bg-brand-gradient rounded-2xl font-black text-white text-lg shadow-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-tighter"
+                                >
+                                    {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Activity className="w-6 h-6" />}
+                                    Gerar PIX de Recarga
+                                </button>
+                            </>
+                        ) : (
+                            <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                                <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl space-y-4">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-[9px] font-black text-[#A8A29E] uppercase tracking-widest">Chave PIX (E-mail/CPF/Aleatória)</span>
+                                        <div className="flex items-center justify-between">
+                                            <span className="text-sm font-black text-white">{manualPixConfig?.pix_key || 'Configuração pendente'}</span>
+                                            {manualPixConfig?.pix_key && (
+                                                <button 
+                                                    onClick={() => { navigator.clipboard.writeText(manualPixConfig.pix_key!); alert('Chave Copiada!'); }}
+                                                    className="p-2 text-emerald-400 hover:text-white transition-colors"
+                                                >
+                                                    <Copy size={16} />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-between items-center pt-4 border-t border-white/5">
+                                        <div className="flex flex-col">
+                                            <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest">Banco</span>
+                                            <span className="text-[11px] font-black text-white italic">{manualPixConfig?.bank_name || 'N/A'}</span>
+                                        </div>
+                                        <div className="flex flex-col text-right">
+                                            <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest">Favorecido</span>
+                                            <span className="text-[11px] font-black text-white">{manualPixConfig?.receiver_name || 'N/A'}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="space-y-4 text-center">
+                                    <p className="text-[11px] text-[#A8A29E] font-medium leading-relaxed">
+                                        Após realizar a transferência no seu banco, o lojista deve enviar o comprovante ao suporte. Você deve creditar o saldo manualmente no painel central.
+                                    </p>
+                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 text-[9px] font-black uppercase tracking-widest">
+                                        <AlertCircle size={12} />
+                                        Pagamento Grátis (Sem Taxas)
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        <div className="p-4 bg-white/5 rounded-2xl border border-white/5 space-y-2">
-                            <p className="text-[10px] font-bold text-[#A8A29E] uppercase leading-relaxed">
-                                <Info className="w-3 h-3 inline mr-1 text-guepardo-orange" />
-                                O saldo será liberado automaticamente após a confirmação do pagamento pelo Asaas.
-                            </p>
-                        </div>
-
-                        <button
-                            onClick={handleCreateCharge}
-                            disabled={loading}
-                            className="w-full py-5 bg-brand-gradient rounded-2xl font-black text-white text-lg shadow-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-tighter"
-                        >
-                            {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <Activity className="w-6 h-6" />}
-                            Gerar PIX de Recarga
-                        </button>
+                        )}
                     </div>
                 ) : (
                     <div className="flex flex-col items-center text-center space-y-6">
@@ -602,6 +692,33 @@ const MerchantManagement = () => {
             }
         } catch (err) {
             console.error('Error updating onboarding:', err);
+        }
+    };
+
+    const handleManualAdjustment = async (storeId: string, currentBalance: number) => {
+        const amountStr = prompt("Digite o valor para ADICIONAR ao saldo (ex: 50.00):");
+        if (!amountStr) return;
+        
+        const amount = parseFloat(amountStr);
+        if (isNaN(amount) || amount <= 0) {
+            alert("Valor inválido.");
+            return;
+        }
+
+        const confirmText = prompt(`Você está prestes a ADICIONAR R$ ${amount.toFixed(2)} ao saldo da loja. Digite "SIM" para confirmar:`);
+        if (confirmText?.toUpperCase() !== "SIM") return;
+
+        try {
+            const { error } = await supabase
+                .from('stores')
+                .update({ wallet_balance: (currentBalance || 0) + amount })
+                .eq('id', storeId);
+
+            if (error) throw error;
+            alert("Saldo atualizado com sucesso!");
+            fetchData();
+        } catch (err: any) {
+            alert(`Erro ao atualizar saldo: ${err.message}`);
         }
     };
 
@@ -821,9 +938,16 @@ const MerchantManagement = () => {
                                     </div>
                                     <div className="flex items-center gap-2">
                                         <button
+                                            onClick={() => handleManualAdjustment(store.id, store.wallet_balance || 0)}
+                                            className="shrink-0 p-3 bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-2xl hover:bg-amber-500/20 transition-all shadow-inner hover:scale-110"
+                                            title="Ajuste Manual de Saldo"
+                                        >
+                                            <Activity className="w-5 h-5" />
+                                        </button>
+                                        <button
                                             onClick={() => setRechargeStore(store)}
-                                            className="shrink-0 p-3 bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 rounded-2xl hover:bg-emerald-500/20 transition-all shadow-inner hover:scale-110"
-                                            title="Recarregar Saldo"
+                                            className="shrink-0 p-3 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-2xl hover:bg-emerald-500/20 transition-all shadow-inner hover:scale-110"
+                                            title="Gerar Cobrança"
                                         >
                                             <Wallet className="w-5 h-5" />
                                         </button>

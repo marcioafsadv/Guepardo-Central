@@ -888,23 +888,40 @@ const FinanceManagement = () => {
                                              <td className="px-8 py-5 text-right">
                                                 <div className="flex items-center justify-end gap-4">
                                                     {p.status === 'pending' && (
-                                                        <button
-                                                            onClick={() => handleApprovePayout(p.id)}
-                                                            disabled={isProcessing !== null}
-                                                            className="px-4 py-2 bg-brand-gradient text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
-                                                        >
-                                                            {isProcessing === p.id ? (
-                                                                <>
-                                                                    <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                                                                    Processando
-                                                                </>
-                                                            ) : (
-                                                                <>
-                                                                    <ArrowDownLeft size={14} />
-                                                                    Aprovar e Pagar
-                                                                </>
-                                                            )}
-                                                        </button>
+                                                        <div className="flex items-center gap-3">
+                                                            <button
+                                                                onClick={() => {
+                                                                    setManualPayoutData({
+                                                                        id: p.id,
+                                                                        amount: Number(p.amount),
+                                                                        pix_key: p.pix_key,
+                                                                        error: 'Fluxo Manual Selecionado'
+                                                                    });
+                                                                }}
+                                                                disabled={isProcessing !== null}
+                                                                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all flex items-center gap-2"
+                                                            >
+                                                                <Copy size={12} />
+                                                                Pagar Manual
+                                                            </button>
+                                                            <button
+                                                                onClick={() => handleApprovePayout(p.id)}
+                                                                disabled={isProcessing !== null}
+                                                                className="px-4 py-2 bg-brand-gradient text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
+                                                            >
+                                                                {isProcessing === p.id ? (
+                                                                    <>
+                                                                        <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                                                        Processando
+                                                                    </>
+                                                                ) : (
+                                                                    <>
+                                                                        <ArrowDownLeft size={14} />
+                                                                        Aprovar via API
+                                                                    </>
+                                                                )}
+                                                            </button>
+                                                        </div>
                                                     )}
                                                     {p.status === 'processing' && (
                                                         <button
@@ -957,8 +974,14 @@ const FinanceManagement = () => {
                                 <AlertTriangle size={32} />
                             </div>
                             <div className="space-y-2">
-                                <h2 className="text-2xl font-black text-white uppercase italic">Pagamento Manual Necessário</h2>
-                                <p className="text-xs text-[#A8A29E] font-bold leading-relaxed">O Asaas retornou um impedimento para o envio automático: <span className="text-white font-black">{manualPayoutData.error || 'Verifique o saldo ou a ativação da conta'}</span>. Por favor, realize o PIX manualmente:</p>
+                                <h2 className="text-2xl font-black text-white uppercase italic">
+                                    {manualPayoutData.error === 'Fluxo Manual Selecionado' ? 'Pagamento PIX Manual' : 'Pagamento Manual Necessário'}
+                                </h2>
+                                <p className="text-xs text-[#A8A29E] font-bold leading-relaxed">
+                                    {manualPayoutData.error === 'Fluxo Manual Selecionado' 
+                                        ? 'Realize a transferência no aplicativo do seu banco usando os dados abaixo:' 
+                                        : `O Asaas retornou um impedimento: ${manualPayoutData.error || 'Verifique o saldo'}. Realize o PIX manualmente:`}
+                                </p>
                             </div>
                             
                             <div className="w-full space-y-4 bg-black/40 p-6 rounded-3xl border border-white/5">
