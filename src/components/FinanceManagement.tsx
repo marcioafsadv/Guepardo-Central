@@ -57,8 +57,9 @@ const FinanceManagement = () => {
     const [endDate, setEndDate] = useState<string>('');
     const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
-    const [activeTab, setActiveTab] = useState<'history' | 'payouts'>('history');
+    const [activeTab, setActiveTab] = useState<'history' | 'payouts' | 'recharges'>('history');
     const [payouts, setPayouts] = useState<any[]>([]);
+    const [rechargeRequests, setRechargeRequests] = useState<any[]>([]);
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const [manualPayoutData, setManualPayoutData] = useState<any>(null);
 
@@ -149,9 +150,32 @@ const FinanceManagement = () => {
         }
     }, []);
 
+    const fetchRecharges = useCallback(async () => {
+        try {
+            const { data, error } = await supabase
+                .from('wallet_transactions')
+                .select(`
+                    *,
+                    stores:store_id (
+                        fantasy_name,
+                        company_name
+                    )
+                `)
+                .eq('payment_method', 'MANUAL')
+                .eq('status', 'PENDING')
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+            setRechargeRequests(data || []);
+        } catch (err) {
+            console.error('Error fetching recharges:', err);
+        }
+    }, []);
+
     useEffect(() => {
         void fetchFinanceData();
         void fetchPayouts();
+        void fetchRecharges();
 
         const subscription = supabase
             .channel('finance-updates')
@@ -161,13 +185,68 @@ const FinanceManagement = () => {
             .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, () => {
                 void fetchPayouts();
             })
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'wallet_transactions' }, () => {
+                void fetchRecharges();
+            })
             .subscribe();
 
         return () => {
             supabase.removeChannel(subscription);
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [fetchFinanceData, fetchPayouts, supabase]);
+    }, [fetchFinanceData, fetchPayouts, fetchRecharges, supabase]);
+
+    const handleApproveRecharge = async (recharge: any) => {
+        if (!window.confirm(`Confirmar recarga de R$ ${recharge.amount.toFixed(2)} para ${recharge.stores?.fantasy_name || recharge.stores?.company_name}?`)) return;
+
+        try {
+            setIsProcessing(recharge.id);
+            
+            const { error: rpcError } = await supabase.rpc('increment_wallet_balance', {
+                target_store_id: recharge.store_id,
+                amount_to_add: recharge.amount
+            });
+
+            if (rpcError) throw rpcError;
+
+            const { error: updateError } = await supabase
+                .from('wallet_transactions')
+                .update({ 
+                    status: 'CONFIRMED',
+                    metadata: { ...recharge.metadata, approved_at: new Date().toISOString(), approved_by: 'admin' }
+                })
+                .eq('id', recharge.id);
+
+            if (updateError) throw updateError;
+
+            alert('Recarga aprovada! O saldo foi creditado na conta da loja.');
+            void fetchRecharges();
+        } catch (err: any) {
+            console.error('Error approving recharge:', err);
+            alert('Erro ao aprovar: ' + (err.message || 'Tente novamente.'));
+        } finally {
+            setIsProcessing(null);
+        }
+    };
+
+    const handleRejectRecharge = async (recharge: any) => {
+        if (!window.confirm(`Recusar esta solicitação de recarga?`)) return;
+
+        try {
+            setIsProcessing(recharge.id);
+            const { error } = await supabase
+                .from('wallet_transactions')
+                .update({ status: 'CANCELLED' })
+                .eq('id', recharge.id);
+
+            if (error) throw error;
+            void fetchRecharges();
+        } catch (err) {
+            console.error('Error rejecting recharge:', err);
+        } finally {
+            setIsProcessing(null);
+        }
+    };
 
     const totalVolume = deliveries.reduce((acc, curr) => acc + (curr.calculated_merchant_fee || 0), 0);
     const courierTotal = deliveries.reduce((acc, curr) => acc + (curr.earnings || 0), 0);
@@ -353,9 +432,26 @@ const FinanceManagement = () => {
                         </span>
                     )}
                 </button>
+                <button
+                    onClick={() => setActiveTab('recharges')}
+                    className={cn(
+                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+                        activeTab === 'recharges'
+                            ? "bg-brand-gradient text-white shadow-glow"
+                            : "text-[#A8A29E] hover:text-white hover:bg-white/5"
+                    )}
+                >
+                    <ArrowDownLeft size={16} />
+                    Solicitações de Recarga
+                    {rechargeRequests.length > 0 && (
+                        <span className="bg-fluorescent-orange text-black px-2 py-0.5 rounded-full text-[10px] animate-pulse">
+                            {rechargeRequests.length}
+                        </span>
+                    )}
+                </button>
             </div>
 
-            {activeTab === 'history' ? (
+            {activeTab === 'history' && (
                 <>
             {/* Header section with stats summary */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -820,8 +916,9 @@ const FinanceManagement = () => {
                 </div>
             )}
                 </>
-            ) : (
-                /* Payouts Management View */
+            )}
+
+            {activeTab === 'payouts' && (
                 <div className="bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden shadow-2xl backdrop-blur-md">
                     <div className="p-8 border-b border-white/10 flex flex-col gap-2">
                         <h3 className="text-xl font-black text-white flex items-center gap-3">
@@ -956,6 +1053,98 @@ const FinanceManagement = () => {
                                             <div className="flex flex-col items-center gap-4 text-[#A8A29E]">
                                                 <Info size={40} className="opacity-20" />
                                                 <span className="text-xs font-bold uppercase tracking-widest">Nenhuma solicitação de repasse encontrada</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            )}
+
+            {activeTab === 'recharges' && (
+                <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl backdrop-blur-md relative overflow-hidden animate-in slide-in-from-right duration-500">
+                    <div className="flex items-center justify-between mb-8">
+                        <div className="flex flex-col gap-1">
+                            <h3 className="text-xl font-black text-white flex items-center gap-3 uppercase italic">
+                                <ArrowDownLeft className="text-[#FF6B00] w-6 h-6 shadow-glow-orange" />
+                                <span>Solicitações de Recarga Manual</span>
+                            </h3>
+                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Valide as transferências recebidas e libere o saldo</p>
+                        </div>
+                    </div>
+
+                    <div className="overflow-x-auto custom-scrollbar">
+                        <table className="w-full text-left">
+                            <thead>
+                                <tr className="border-b border-white/5">
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Loja</th>
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Data / Hora</th>
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-right">Valor</th>
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-center">Status</th>
+                                    <th className="px-8 py-4 text-[10px] font-black text-[#A8A29E] uppercase tracking-widest text-right">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-white/5">
+                                {rechargeRequests.length > 0 ? (
+                                    rechargeRequests.map((r: any) => (
+                                        <tr key={r.id} className="hover:bg-white/5 transition-colors group">
+                                            <td className="px-8 py-5">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="p-2 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20">
+                                                        <Store size={18} />
+                                                    </div>
+                                                    <span className="text-sm font-black text-white italic uppercase">{r.stores?.fantasy_name || r.stores?.company_name}</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5">
+                                                <div className="flex flex-col">
+                                                    <span className="text-xs font-black text-white">{format(new Date(r.created_at), 'dd/MM/yyyy')}</span>
+                                                    <span className="text-[10px] text-[#A8A29E] font-bold uppercase">{format(new Date(r.created_at), 'HH:mm')}h</span>
+                                                </div>
+                                            </td>
+                                            <td className="px-8 py-5 text-right">
+                                                <span className="text-lg font-black text-[#FF6B00] italic">R$ {r.amount.toFixed(2)}</span>
+                                            </td>
+                                            <td className="px-8 py-5 text-center">
+                                                <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-amber-500/20 animate-pulse">
+                                                    Aguardando Conferência
+                                                </span>
+                                            </td>
+                                            <td className="px-8 py-5 text-right">
+                                                <div className="flex items-center justify-end gap-3">
+                                                    <button
+                                                        onClick={() => handleRejectRecharge(r)}
+                                                        disabled={isProcessing === r.id}
+                                                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-red-500/20 transition-all hover:scale-105"
+                                                    >
+                                                        Recusar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleApproveRecharge(r)}
+                                                        disabled={isProcessing === r.id}
+                                                        className="px-6 py-2 bg-[#FF6B00] hover:bg-[#F37E32] text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow-orange transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                                                    >
+                                                        {isProcessing === r.id ? (
+                                                            <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                                        ) : (
+                                                            <CheckCircle size={14} />
+                                                        )}
+                                                        Aprovar Recarga
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))
+                                ) : (
+                                    <tr>
+                                        <td colSpan={5} className="px-8 py-20 text-center">
+                                            <div className="flex flex-col items-center gap-4 text-[#A8A29E]">
+                                                <div className="p-4 bg-white/5 rounded-2xl">
+                                                    <Info size={40} className="opacity-20" />
+                                                </div>
+                                                <span className="text-xs font-bold uppercase tracking-widest italic opacity-50">Nenhuma solicitação de recarga pendente</span>
                                             </div>
                                         </td>
                                     </tr>
