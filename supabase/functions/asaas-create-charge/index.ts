@@ -67,54 +67,63 @@ serve(async (req) => {
         .eq('id', storeId)
     }
 
-    // 3. Criar a cobrança
-    console.log(`Gerando cobrança de R$ ${amount} (${billingType}) para o cliente ${asaasCustomerId}`)
-    
-    const paymentRequest: any = {
-      customer: asaasCustomerId,
-      billingType: billingType,
-      value: amount,
-      dueDate: new Date().toISOString().split('T')[0],
-      description: `Recarga de Saldo - Guepardo`,
-      externalReference: `RECARGA-${Date.now()}`
-    }
+    // 3. Criar a cobrança (Somente se for PIX ou CREDIT_CARD)
+    let paymentData: any = null
+    let pixData: any = null
 
-    // Se for cartão, adiciona os dados necessários
-    if (billingType === 'CREDIT_CARD' && creditCard) {
-      paymentRequest.creditCard = creditCard
-      paymentRequest.creditCardHolderInfo = creditCardHolderInfo || {
-        name: store.fantasy_name || store.company_name,
-        email: store.email || `${store.id}@guepardo.com`,
-        cpfCnpj: store.cnpj?.replace(/[^\d]/g, ''),
-        postalCode: store.address?.cep?.replace(/[^\d]/g, '') || '',
-        addressNumber: store.address?.number || '',
-        phone: store.phone?.replace(/[^\d]/g, '') || ''
+    if (billingType === 'PIX' || billingType === 'CREDIT_CARD') {
+      console.log(`Gerando cobrança de R$ ${amount} (${billingType}) para o cliente ${asaasCustomerId}`)
+      
+      const paymentRequest: any = {
+        customer: asaasCustomerId,
+        billingType: billingType,
+        value: amount,
+        dueDate: new Date().toISOString().split('T')[0],
+        description: `Recarga de Saldo - Guepardo`,
+        externalReference: `RECARGA-${Date.now()}`
       }
-      paymentRequest.remoteIp = req.headers.get('x-real-ip') || req.headers.get('x-forwarded-for') || '127.0.0.1'
-    }
 
-    const paymentRes = await fetch(`${ASAAS_API_URL}/payments`, {
-      method: 'POST',
-      headers: {
-        'access_token': ASAAS_API_KEY || '',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(paymentRequest)
-    })
-
-    const paymentData = await paymentRes.json()
-    if (!paymentRes.ok) throw new Error(`Falha ao gerar cobrança no Asaas: ${JSON.stringify(paymentData)}`)
-
-    // 4. Se for PIX, buscar o QR Code
-    let pixData = null
-    if (billingType === 'PIX') {
-      const pixRes = await fetch(`${ASAAS_API_URL}/payments/${paymentData.id}/pixQrCode`, {
-        method: 'GET',
-        headers: {
-          'access_token': ASAAS_API_KEY || ''
+      // Se for cartão, adiciona os dados necessários
+      if (billingType === 'CREDIT_CARD' && creditCard) {
+        paymentRequest.creditCard = creditCard
+        paymentRequest.creditCardHolderInfo = creditCardHolderInfo || {
+          name: store.fantasy_name || store.company_name,
+          email: store.email || `${store.id}@guepardo.com`,
+          cpfCnpj: store.cnpj?.replace(/[^\d]/g, ''),
+          postalCode: store.address?.cep?.replace(/[^\d]/g, '') || '',
+          addressNumber: store.address?.number || '',
+          phone: store.phone?.replace(/[^\d]/g, '') || ''
         }
+        paymentRequest.remoteIp = req.headers.get('x-real-ip') || req.headers.get('x-forwarded-for') || '127.0.0.1'
+      }
+
+      const paymentRes = await fetch(`${ASAAS_API_URL}/payments`, {
+        method: 'POST',
+        headers: {
+          'access_token': ASAAS_API_KEY || '',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(paymentRequest)
       })
-      pixData = await pixRes.json()
+
+      paymentData = await paymentRes.json()
+      if (!paymentRes.ok) throw new Error(`Falha ao gerar cobrança no Asaas: ${JSON.stringify(paymentData)}`)
+
+      // 4. Se for PIX, buscar o QR Code
+      if (billingType === 'PIX') {
+        const pixRes = await fetch(`${ASAAS_API_URL}/payments/${paymentData.id}/pixQrCode`, {
+          method: 'GET',
+          headers: {
+            'access_token': ASAAS_API_KEY || ''
+          }
+        })
+        pixData = await pixRes.json()
+      }
+    } else if (billingType === 'MANUAL') {
+        console.log(`Registrando intenção de recarga MANUAL para a loja: ${storeId}`)
+        // Pula Asaas, paymentData será nulo o que o insert do BD trata
+    } else {
+        throw new Error(`Tipo de cobrança '${billingType}' não suportado`)
     }
 
     // 5. Registrar transação no banco
@@ -125,19 +134,15 @@ serve(async (req) => {
         amount: amount,
         type: 'RECHARGE',
         payment_method: billingType,
-        status: paymentData.status === 'CONFIRMED' || paymentData.status === 'RECEIVED' ? 'CONFIRMED' : 'PENDING',
+        status: billingType === 'CREDIT_CARD' || (paymentData?.status === 'CONFIRMED' || paymentData?.status === 'RECEIVED') ? 'CONFIRMED' : 'PENDING',
         pix_qr_code: pixData?.encodedImage,
         pix_copy_paste: pixData?.payload,
-        external_id: paymentData.id,
+        external_id: paymentData?.id,
         metadata: {
-          asaas_status: paymentData.status,
+          asaas_status: paymentData?.status || 'MANUAL',
           billing_type: billingType
         }
       })
-      .select()
-      .single()
-
-    if (txError) console.error('Erro ao registrar transação:', txError.message)
       .select()
       .single()
 
