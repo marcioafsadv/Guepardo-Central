@@ -140,7 +140,9 @@ serve(async (req) => {
         external_id: paymentData?.id,
         metadata: {
           asaas_status: paymentData?.status || 'MANUAL',
-          billing_type: billingType
+          billing_type: billingType,
+          gateway: billingType === 'MANUAL' ? 'Mercado Pago' : 'Asaas',
+          manual_payout: billingType === 'MANUAL'
         }
       })
       .select()
@@ -151,10 +153,10 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        paymentId: paymentData.id,
+        paymentId: paymentData?.id,
         transactionId: tx?.id,
-        pixCode: pixData.payload,
-        pixImage: pixData.encodedImage,
+        pixCode: pixData?.payload,
+        pixImage: pixData?.encodedImage,
         amount: amount
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -369,7 +369,7 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
 
         setLoading(true);
         try {
-            const functionName = billingType === 'MANUAL' ? 'process-manual-recharge' : 'asaas-create-charge';
+            const functionName = 'asaas-create-charge';
             const { data, error } = await supabase.functions.invoke(functionName, {
                 body: { 
                     storeId: store.id, 
@@ -471,7 +471,7 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
                                 </div>
 
                                 <button
-                                    onClick={handleCreateCharge}
+                                    onClick={() => handleCreateCharge('PIX')}
                                     disabled={loading}
                                     className="w-full py-5 bg-brand-gradient rounded-2xl font-black text-white text-lg shadow-glow hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-tighter"
                                 >
