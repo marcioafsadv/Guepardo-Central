@@ -369,7 +369,8 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
 
         setLoading(true);
         try {
-            const { data, error } = await supabase.functions.invoke('asaas-create-charge', {
+            const functionName = billingType === 'MANUAL' ? 'process-manual-recharge' : 'asaas-create-charge';
+            const { data, error } = await supabase.functions.invoke(functionName, {
                 body: { 
                     storeId: store.id, 
                     amount: numAmount,
@@ -378,7 +379,7 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
             });
 
             if (error) throw error;
-            if (!data.success) throw new Error(data.error);
+            if (data && !data.success) throw new Error(data.error);
 
             if (billingType === 'MANUAL') {
                 alert('Transferência informada com sucesso! O saldo será creditado após a conferência do admin.');
