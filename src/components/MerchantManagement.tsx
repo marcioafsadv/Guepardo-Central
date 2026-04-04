@@ -360,7 +360,7 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
         fetchConfig();
     }, []);
 
-    const handleCreateCharge = async () => {
+    const handleCreateCharge = async (billingType: 'PIX' | 'MANUAL' = 'PIX') => {
         const numAmount = parseFloat(amount);
         if (isNaN(numAmount) || numAmount < 20) {
             alert('O valor mínimo para recarga é R$ 20,00');
@@ -370,13 +370,22 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
         setLoading(true);
         try {
             const { data, error } = await supabase.functions.invoke('asaas-create-charge', {
-                body: { storeId: store.id, amount: numAmount }
+                body: { 
+                    storeId: store.id, 
+                    amount: numAmount,
+                    billingType: billingType
+                }
             });
 
             if (error) throw error;
             if (!data.success) throw new Error(data.error);
 
-            setPixData(data);
+            if (billingType === 'MANUAL') {
+                alert('Transferência informada com sucesso! O saldo será creditado após a conferência do admin.');
+                onClose();
+            } else {
+                setPixData(data);
+            }
         } catch (err: any) {
             console.error('Erro ao gerar cobrança:', err);
             alert(`Erro: ${err.message}`);
@@ -471,14 +480,30 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
                             </>
                         ) : (
                             <div className="space-y-6 animate-in slide-in-from-right duration-300">
+                                <div className="space-y-2">
+                                    <label className="text-[10px] font-black text-[#A8A29E] uppercase tracking-widest">Valor da Transferência (Mín. R$ 20,00)</label>
+                                    <div className="relative">
+                                        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-emerald-500">R$</span>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            min="20"
+                                            value={amount}
+                                            onChange={(e) => setAmount(e.target.value)}
+                                            className="w-full bg-black/40 border border-white/10 rounded-2xl py-4 pl-12 pr-4 text-2xl font-black text-white focus:outline-none focus:border-emerald-500/50 transition-all font-mono"
+                                            placeholder="0,00"
+                                        />
+                                    </div>
+                                </div>
+
                                 <div className="p-6 bg-emerald-500/5 border border-emerald-500/10 rounded-3xl space-y-4">
                                     <div className="flex flex-col gap-1">
-                                        <span className="text-[9px] font-black text-[#A8A29E] uppercase tracking-widest">Chave PIX (E-mail/CPF/Aleatória)</span>
+                                        <span className="text-[9px] font-black text-[#A8A29E] uppercase tracking-widest">Chave PIX (Admin)</span>
                                         <div className="flex items-center justify-between">
-                                            <span className="text-sm font-black text-white">{manualPixConfig?.pix_key || 'Configuração pendente'}</span>
-                                            {manualPixConfig?.pix_key && (
+                                            <span className="text-sm font-black text-white">{manualPixConfig?.pix_key || '65.628.033/0001-26'}</span>
+                                            {(manualPixConfig?.pix_key || '65.628.033/0001-26') && (
                                                 <button 
-                                                    onClick={() => { navigator.clipboard.writeText(manualPixConfig.pix_key!); alert('Chave Copiada!'); }}
+                                                    onClick={() => { navigator.clipboard.writeText(manualPixConfig?.pix_key || '65.628.033/0001-26'); alert('Chave Copiada!'); }}
                                                     className="p-2 text-emerald-400 hover:text-white transition-colors"
                                                 >
                                                     <Copy size={16} />
@@ -489,19 +514,30 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
                                     <div className="flex justify-between items-center pt-4 border-t border-white/5">
                                         <div className="flex flex-col">
                                             <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest">Banco</span>
-                                            <span className="text-[11px] font-black text-white italic">{manualPixConfig?.bank_name || 'N/A'}</span>
+                                            <span className="text-[11px] font-black text-white italic">{manualPixConfig?.bank_name || 'Mercado Pago'}</span>
                                         </div>
                                         <div className="flex flex-col text-right">
                                             <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-widest">Favorecido</span>
-                                            <span className="text-[11px] font-black text-white">{manualPixConfig?.receiver_name || 'N/A'}</span>
+                                            <span className="text-[11px] font-black text-white">{manualPixConfig?.receiver_name || 'GUEPARDO DELIVERY'}</span>
                                         </div>
                                     </div>
                                 </div>
+
                                 <div className="space-y-4 text-center">
                                     <p className="text-[11px] text-[#A8A29E] font-medium leading-relaxed">
-                                        Após realizar a transferência no seu banco, o lojista deve enviar o comprovante ao suporte. Você deve creditar o saldo manualmente no painel central.
+                                        Realize a transferência e clique no botão abaixo. O saldo será liberado após conferência.
                                     </p>
-                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 text-[9px] font-black uppercase tracking-widest">
+                                    
+                                    <button
+                                        onClick={() => handleCreateCharge('MANUAL')}
+                                        disabled={loading}
+                                        className="w-full py-5 bg-[#FF6B00] rounded-2xl font-black text-white text-lg shadow-glow-orange hover:scale-[1.02] active:scale-[0.98] transition-all flex items-center justify-center gap-3 uppercase tracking-tighter mt-4"
+                                    >
+                                        {loading ? <Loader2 className="w-6 h-6 animate-spin" /> : <CheckCircle2 className="w-6 h-6" />}
+                                        Informar Transferência
+                                    </button>
+
+                                    <div className="inline-flex items-center gap-2 px-4 py-2 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20 text-[9px] font-black uppercase tracking-widest mt-2">
                                         <AlertCircle size={12} />
                                         Pagamento Grátis (Sem Taxas)
                                     </div>
