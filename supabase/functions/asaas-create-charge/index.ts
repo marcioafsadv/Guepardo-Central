@@ -37,9 +37,9 @@ serve(async (req) => {
     if (storeError || !store) throw new Error('Loja não encontrada')
 
     let asaasCustomerId = store.asaas_customer_id
-
-    // 2. Se não tiver ID no Asaas, cria o cliente lá
-    if (!asaasCustomerId) {
+    
+    // 2. Se não for MANUAL e não tiver ID no Asaas, cria o cliente lá
+    if (billingType !== 'MANUAL' && !asaasCustomerId) {
       console.log(`Criando cliente Asaas para a loja: ${store.fantasy_name}`)
       const customerRes = await fetch(`${ASAAS_API_URL}/customers`, {
         method: 'POST',

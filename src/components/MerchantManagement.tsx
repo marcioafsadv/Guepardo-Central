@@ -335,6 +335,7 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
     const [pixData, setPixData] = useState<{ pixCode: string; pixImage: string; amount: number } | null>(null);
     const [copied, setCopied] = useState(false);
     const [activeTab, setActiveTab] = useState<'automated' | 'manual'>('automated');
+    const [error, setError] = useState<string | null>(null);
     const [manualPixConfig, setManualPixConfig] = useState<{ pix_key?: string; bank_name?: string; receiver_name?: string } | null>(null);
 
     useEffect(() => {
@@ -525,6 +526,12 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
                                 </div>
 
                                 <div className="space-y-4 text-center">
+                                    {error && (
+                                        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex gap-3 animate-shake mb-4">
+                                            <AlertCircle size={16} className="text-red-400 shrink-0" />
+                                            <p className="text-[10px] text-red-200 font-bold uppercase tracking-tight text-left">{error}</p>
+                                        </div>
+                                    )}
                                     <p className="text-[11px] text-[#A8A29E] font-medium leading-relaxed">
                                         Realize a transferência e clique no botão abaixo. O saldo será liberado após conferência.
                                     </p>
