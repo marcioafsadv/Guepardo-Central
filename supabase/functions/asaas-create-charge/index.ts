@@ -18,9 +18,10 @@ serve(async (req) => {
 
   try {
     const { storeId, amount, billingType = 'PIX', creditCard, creditCardHolderInfo } = await req.json()
+    console.log(`[DEBUG] Recebido: storeId=${storeId}, amount=${amount}, billingType=${billingType}`)
 
     if (!storeId || !amount) {
-      throw new Error('ID da loja e valor são obrigatórios')
+      throw new Error(`Dados insuficientes (refe: ${storeId}/${amount})`)
     }
 
     if (amount < 20) {
@@ -34,7 +35,11 @@ serve(async (req) => {
       .eq('id', storeId)
       .single()
 
-    if (storeError || !store) throw new Error('Loja não encontrada')
+    if (storeError) {
+      console.error(`[DEBUG] Erro ao buscar loja ${storeId}:`, storeError.message)
+      throw new Error(`Loja ${storeId} não encontrada no banco`)
+    }
+    if (!store) throw new Error(`Loja ${storeId} retornou objeto vazio`)
 
     let asaasCustomerId = store.asaas_customer_id
     
@@ -131,24 +136,22 @@ serve(async (req) => {
       .from('wallet_transactions')
       .insert({
         store_id: storeId,
-        amount: amount,
+        amount: Number(amount),
         type: 'RECHARGE',
         payment_method: billingType,
         status: billingType === 'CREDIT_CARD' || (paymentData?.status === 'CONFIRMED' || paymentData?.status === 'RECEIVED') ? 'CONFIRMED' : 'PENDING',
         pix_qr_code: pixData?.encodedImage,
         pix_copy_paste: pixData?.payload,
         external_id: paymentData?.id,
-        metadata: {
-          asaas_status: paymentData?.status || 'MANUAL',
-          billing_type: billingType,
-          gateway: billingType === 'MANUAL' ? 'Mercado Pago' : 'Asaas',
-          manual_payout: billingType === 'MANUAL'
-        }
+        description: `Recarga via ${billingType} - Guepardo`
       })
       .select()
       .single()
 
-    if (txError) console.error('Erro ao registrar transação:', txError.message)
+    if (txError) {
+      console.error('Erro ao registrar transação:', txError.message)
+      throw new Error(`Erro ao salvar no banco de dados: ${txError.message}`)
+    }
 
     return new Response(
       JSON.stringify({

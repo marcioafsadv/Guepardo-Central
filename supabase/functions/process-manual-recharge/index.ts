@@ -35,12 +35,7 @@ serve(async (req) => {
         type: 'RECHARGE',
         payment_method: 'MANUAL',
         status: 'PENDING',
-        description: description || 'Recarga Manual (Transferência Informada pelo Lojista)',
-        metadata: {
-          manual_payout: true,
-          gateway: 'Mercado Pago',
-          timestamp: new Date().toISOString()
-        }
+        description: description || 'Recarga Manual (Transferência Informada pelo Lojista)'
       })
       .select()
       .single()
