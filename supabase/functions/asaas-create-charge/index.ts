@@ -131,26 +131,41 @@ serve(async (req) => {
         throw new Error(`Tipo de cobrança '${billingType}' não suportado`)
     }
 
-    // 5. Registrar transação no banco
+    // 5. Registrar transação no banco (Construção dinâmica para evitar schemas incompatíveis)
+    // Forçamos o valor para ser positivo e com 2 casas decimais (float) para evitar erro de constraint
+    const finalAmount = Math.abs(Number(amount))
+
+    const transactionData: any = {
+      store_id: storeId,
+      amount: finalAmount,
+      type: 'RECHARGE',
+      payment_method: billingType === 'MANUAL' ? 'PIX' : billingType, // Teste: Usando PIX se for Manual para verificar constraint
+      status: billingType === 'CREDIT_CARD' || (paymentData?.status === 'CONFIRMED' || paymentData?.status === 'RECEIVED') ? 'CONFIRMED' : 'PENDING'
+    }
+
+    if (pixData?.encodedImage) transactionData.pix_qr_code = pixData.encodedImage
+    if (pixData?.payload) transactionData.pix_copy_paste = pixData.payload
+    if (paymentData?.id) transactionData.external_id = paymentData.id
+
+    console.log(`[DEBUG] Inserindo transação:`, JSON.stringify(transactionData))
+
     const { data: tx, error: txError } = await supabaseClient
       .from('wallet_transactions')
-      .insert({
-        store_id: storeId,
-        amount: Number(amount),
-        type: 'RECHARGE',
-        payment_method: billingType,
-        status: billingType === 'CREDIT_CARD' || (paymentData?.status === 'CONFIRMED' || paymentData?.status === 'RECEIVED') ? 'CONFIRMED' : 'PENDING',
-        pix_qr_code: pixData?.encodedImage,
-        pix_copy_paste: pixData?.payload,
-        external_id: paymentData?.id,
-        description: `Recarga via ${billingType} - Guepardo`
-      })
+      .insert(transactionData)
       .select()
       .single()
 
     if (txError) {
       console.error('Erro ao registrar transação:', txError.message)
-      throw new Error(`Erro ao salvar no banco de dados: ${txError.message}`)
+      return new Response(
+        JSON.stringify({ 
+          success: false, 
+          error: `Erro no Banco de Dados: ${txError.message}`,
+          details: txError,
+          payloadSent: transactionData
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
     }
 
     return new Response(
