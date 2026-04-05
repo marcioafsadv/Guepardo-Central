@@ -161,7 +161,8 @@ const FinanceManagement = () => {
                         company_name
                     )
                 `)
-                .or('payment_method.eq.MANUAL,and(payment_method.eq.PIX,external_id.is.null)')
+                .or('payment_method.eq.MANUAL,payment_method.eq.PIX')
+                .is('external_id', null)
                 .eq('status', 'PENDING')
                 .order('created_at', { ascending: false });
 

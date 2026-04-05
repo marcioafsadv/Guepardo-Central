@@ -129,6 +129,7 @@ export interface Delivery {
     payment_method?: string;
     order_value?: number;
     origin?: string;
+    external_id?: string;
 }
 
 export interface DriverWithDetails extends Profile {
