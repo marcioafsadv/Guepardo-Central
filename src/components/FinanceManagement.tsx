@@ -162,7 +162,6 @@ const FinanceManagement = () => {
                     )
                 `)
                 .or('payment_method.eq.MANUAL,payment_method.eq.PIX')
-                .eq('status', 'PENDING')
                 .order('created_at', { ascending: false });
 
             if (error) throw error;
@@ -1107,32 +1106,49 @@ const FinanceManagement = () => {
                                                 <span className="text-lg font-black text-[#FF6B00] italic">R$ {r.amount.toFixed(2)}</span>
                                             </td>
                                             <td className="px-8 py-5 text-center">
-                                                <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-amber-500/20 animate-pulse">
-                                                    Aguardando Conferência
-                                                </span>
+                                                {r.status === 'PENDING' ? (
+                                                    <span className="px-3 py-1 bg-amber-500/10 text-amber-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-amber-500/20 animate-pulse">
+                                                        Aguardando Conferência
+                                                    </span>
+                                                ) : r.status === 'CONFIRMED' ? (
+                                                    <span className="px-3 py-1 bg-emerald-500/10 text-emerald-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-emerald-500/20">
+                                                        Confirmado
+                                                    </span>
+                                                ) : (
+                                                    <span className="px-3 py-1 bg-red-500/10 text-red-500 text-[9px] font-black uppercase tracking-widest rounded-full border border-red-500/20">
+                                                        Recusado
+                                                    </span>
+                                                )}
                                             </td>
                                             <td className="px-8 py-5 text-right">
-                                                <div className="flex items-center justify-end gap-3">
-                                                    <button
-                                                        onClick={() => handleRejectRecharge(r)}
-                                                        disabled={isProcessing === r.id}
-                                                        className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-red-500/20 transition-all hover:scale-105"
-                                                    >
-                                                        Recusar
-                                                    </button>
-                                                    <button
-                                                        onClick={() => handleApproveRecharge(r)}
-                                                        disabled={isProcessing === r.id}
-                                                        className="px-6 py-2 bg-[#FF6B00] hover:bg-[#F37E32] text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow-orange transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
-                                                    >
-                                                        {isProcessing === r.id ? (
-                                                            <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                                                        ) : (
-                                                            <CheckCircle size={14} />
-                                                        )}
-                                                        Aprovar Recarga
-                                                    </button>
-                                                </div>
+                                                {r.status === 'PENDING' ? (
+                                                    <div className="flex items-center justify-end gap-3">
+                                                        <button
+                                                            onClick={() => handleRejectRecharge(r)}
+                                                            disabled={isProcessing === r.id}
+                                                            className="px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 text-[10px] font-black uppercase tracking-widest rounded-xl border border-red-500/20 transition-all hover:scale-105"
+                                                        >
+                                                            Recusar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => handleApproveRecharge(r)}
+                                                            disabled={isProcessing === r.id}
+                                                            className="px-6 py-2 bg-[#FF6B00] hover:bg-[#F37E32] text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow-orange transition-all hover:scale-105 active:scale-95 flex items-center gap-2"
+                                                        >
+                                                            {isProcessing === r.id ? (
+                                                                <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
+                                                            ) : (
+                                                                <CheckCircle size={14} />
+                                                            )}
+                                                            Aprovar Recarga
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest italic opacity-50 px-6 py-2 flex items-center justify-end gap-2">
+                                                        {r.status === 'CONFIRMED' ? <CheckCircle size={12} className="text-emerald-500" /> : <X size={12} className="text-red-500" />}
+                                                        Processado
+                                                    </div>
+                                                )}
                                             </td>
                                         </tr>
                                     ))
@@ -1143,7 +1159,8 @@ const FinanceManagement = () => {
                                                 <div className="p-4 bg-white/5 rounded-2xl">
                                                     <Info size={40} className="opacity-20" />
                                                 </div>
-                                                <span className="text-xs font-bold uppercase tracking-widest italic opacity-50">Nenhuma solicitação de recarga pendente</span>
+                                                                                                <span className="text-xs font-bold uppercase tracking-widest italic opacity-50">Nenhuma solicitação de recarga encontrada</span>
+
                                             </div>
                                         </td>
                                     </tr>
