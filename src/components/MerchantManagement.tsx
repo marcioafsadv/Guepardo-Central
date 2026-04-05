@@ -390,6 +390,7 @@ const RechargeModal = ({ store, onClose }: RechargeModalProps) => {
             }
         } catch (err: any) {
             console.error('Erro ao gerar cobrança:', err);
+            setError(err.message || 'Erro ao processar cobrança');
             alert(`Erro: ${err.message}`);
         } finally {
             setLoading(false);
