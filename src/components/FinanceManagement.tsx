@@ -201,21 +201,38 @@ const FinanceManagement = () => {
         try {
             setIsProcessing(recharge.id);
             
+            console.log('🚀 [Finance] Initiating approval for transaction ID:', recharge.id);
+            
             const { error: rpcError } = await supabase.rpc('increment_wallet_balance', {
                 target_store_id: recharge.store_id,
                 amount_to_add: recharge.amount
             });
 
-            if (rpcError) throw rpcError;
+            if (rpcError) {
+                console.error('❌ [Finance] RPC increment_wallet_balance error:', rpcError);
+                throw rpcError;
+            }
 
-            const { error: updateError } = await supabase
+            console.log('✅ [Finance] Balance credited successfully. Updating status to CONFIRMED...');
+
+            const { count, error: updateError } = await supabase
                 .from('wallet_transactions')
                 .update({ 
                     status: 'CONFIRMED'
-                })
+                }, { count: 'exact' })
                 .eq('id', recharge.id);
 
-            if (updateError) throw updateError;
+            if (updateError) {
+                console.error('❌ [Finance] Update status error:', updateError);
+                throw updateError;
+            }
+
+            if (count === 0) {
+                console.warn('⚠️ [Finance] Status update affected 0 rows. Check if ID exists or RLS permissions.');
+                // Fallback or explicit warning? For now just log, but let's inform user if it happens.
+            } else {
+                console.log(`✅ [Finance] Status updated successfully. Rows affected: ${count}`);
+            }
 
             alert('Recarga aprovada! O saldo foi creditado na conta da loja.');
             void fetchRecharges();
