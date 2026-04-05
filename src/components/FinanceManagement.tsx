@@ -201,38 +201,22 @@ const FinanceManagement = () => {
         try {
             setIsProcessing(recharge.id);
             
-            console.log('🚀 [Finance] Initiating approval for transaction ID:', recharge.id);
-            
-            const { error: rpcError } = await supabase.rpc('increment_wallet_balance', {
+            console.log('🚀 [Finance] Approving recharge via atomic RPC. Transaction ID:', recharge.id);
+
+            // Usando RPC atômico que credita saldo + atualiza status em uma transação
+            // SECURITY DEFINER bypassa RLS permitindo a atualização
+            const { error: rpcError } = await supabase.rpc('approve_manual_recharge', {
+                transaction_id:  recharge.id,
                 target_store_id: recharge.store_id,
-                amount_to_add: recharge.amount
+                amount_to_add:   recharge.amount
             });
 
             if (rpcError) {
-                console.error('❌ [Finance] RPC increment_wallet_balance error:', rpcError);
+                console.error('❌ [Finance] approve_manual_recharge RPC error:', rpcError);
                 throw rpcError;
             }
 
-            console.log('✅ [Finance] Balance credited successfully. Updating status to CONFIRMED...');
-
-            const { count, error: updateError } = await supabase
-                .from('wallet_transactions')
-                .update({ 
-                    status: 'CONFIRMED'
-                }, { count: 'exact' })
-                .eq('id', recharge.id);
-
-            if (updateError) {
-                console.error('❌ [Finance] Update status error:', updateError);
-                throw updateError;
-            }
-
-            if (count === 0) {
-                console.warn('⚠️ [Finance] Status update affected 0 rows. Check if ID exists or RLS permissions.');
-                // Fallback or explicit warning? For now just log, but let's inform user if it happens.
-            } else {
-                console.log(`✅ [Finance] Status updated successfully. Rows affected: ${count}`);
-            }
+            console.log('✅ [Finance] Recharge approved successfully. Balance credited and status set to CONFIRMED.');
 
             alert('Recarga aprovada! O saldo foi creditado na conta da loja.');
             void fetchRecharges();
@@ -249,10 +233,11 @@ const FinanceManagement = () => {
 
         try {
             setIsProcessing(recharge.id);
-            const { error } = await supabase
-                .from('wallet_transactions')
-                .update({ status: 'CANCELLED' })
-                .eq('id', recharge.id);
+
+            // Usando RPC atômico com SECURITY DEFINER para bypassar RLS
+            const { error } = await supabase.rpc('reject_manual_recharge', {
+                transaction_id: recharge.id
+            });
 
             if (error) throw error;
             void fetchRecharges();
