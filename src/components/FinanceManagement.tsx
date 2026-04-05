@@ -212,8 +212,7 @@ const FinanceManagement = () => {
             const { error: updateError } = await supabase
                 .from('wallet_transactions')
                 .update({ 
-                    status: 'CONFIRMED',
-                    metadata: { ...recharge.metadata, approved_at: new Date().toISOString(), approved_by: 'admin' }
+                    status: 'CONFIRMED'
                 })
                 .eq('id', recharge.id);
 
