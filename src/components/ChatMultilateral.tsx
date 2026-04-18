@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { useState, useEffect, useRef } from 'react';
 import { Send, X, ShieldAlert, MessageCircle, Bike, Store as StoreIcon } from 'lucide-react';
-import type { Conversation, Message, Delivery } from '../types';
+import type { Delivery } from '../types';
 import { cn } from '../lib/utils';
 
 interface ChatMultilateralProps {
@@ -200,7 +200,7 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                     />
                     <button
                         type="submit"
-                        disabled={!newMessage.trim() || !conversation}
+                        disabled={!newMessage.trim()}
                         className="bg-brand-gradient text-white p-4 rounded-2xl shadow-glow hover:scale-105 transition-all disabled:opacity-50 disabled:hover:scale-100"
                     >
                         <Send className="w-6 h-6" />
