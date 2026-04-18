@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useState, useEffect, useRef } from 'react';
-import { Send, X, ShieldAlert, MessageCircle, Bike, Store as StoreIcon } from 'lucide-react';
+import { Send, X, ShieldAlert, MessageCircle, Bike, Store as StoreIcon, Headset } from 'lucide-react';
 import type { Delivery } from '../types';
 import { cn } from '../lib/utils';
 
@@ -11,7 +11,7 @@ interface ChatMultilateralProps {
 
 const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }) => {
     const [messages, setMessages] = useState<any[]>([]);
-    const [activeChat, setActiveChat] = useState<'COURIER_CLIENT' | 'STORE_COURIER'>('COURIER_CLIENT');
+    const [activeChat, setActiveChat] = useState<'COURIER_CLIENT' | 'STORE_COURIER' | 'STORE_CENTRAL' | 'COURIER_CENTRAL'>('STORE_COURIER');
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -119,9 +119,20 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                 {/* Tabs */}
                 <div className="flex p-2 bg-black/20 gap-2">
                     <button
+                        onClick={() => setActiveChat('STORE_COURIER')}
+                        className={cn(
+                            "flex-1 py-3 rounded-2xl text-[10px] font-bold transition-all flex flex-col items-center justify-center gap-1",
+                            activeChat === 'STORE_COURIER' 
+                                ? "bg-white/10 text-white border border-white/10 shadow-inner" 
+                                : "text-[#A8A29E] hover:text-white hover:bg-white/5"
+                        )}
+                    >
+                        <StoreIcon className="w-4 h-4" /> Loja x Entregador
+                    </button>
+                    <button
                         onClick={() => setActiveChat('COURIER_CLIENT')}
                         className={cn(
-                            "flex-1 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2",
+                            "flex-1 py-3 rounded-2xl text-[10px] font-bold transition-all flex flex-col items-center justify-center gap-1",
                             activeChat === 'COURIER_CLIENT' 
                                 ? "bg-white/10 text-white border border-white/10 shadow-inner" 
                                 : "text-[#A8A29E] hover:text-white hover:bg-white/5"
@@ -130,15 +141,26 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                         <Bike className="w-4 h-4" /> Entregador x Cliente
                     </button>
                     <button
-                        onClick={() => setActiveChat('STORE_COURIER')}
+                        onClick={() => setActiveChat('STORE_CENTRAL')}
                         className={cn(
-                            "flex-1 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2",
-                            activeChat === 'STORE_COURIER' 
-                                ? "bg-white/10 text-white border border-white/10 shadow-inner" 
+                            "flex-1 py-3 rounded-2xl text-[10px] font-bold transition-all flex flex-col items-center justify-center gap-1",
+                            activeChat === 'STORE_CENTRAL' 
+                                ? "bg-guepardo-orange/20 text-guepardo-orange border border-guepardo-orange/20 shadow-inner" 
                                 : "text-[#A8A29E] hover:text-white hover:bg-white/5"
                         )}
                     >
-                        <StoreIcon className="w-4 h-4" /> Loja x Entregador
+                        <Headset className="w-4 h-4" /> Suporte Loja
+                    </button>
+                    <button
+                        onClick={() => setActiveChat('COURIER_CENTRAL')}
+                        className={cn(
+                            "flex-1 py-3 rounded-2xl text-[10px] font-bold transition-all flex flex-col items-center justify-center gap-1",
+                            activeChat === 'COURIER_CENTRAL' 
+                                ? "bg-guepardo-orange/20 text-guepardo-orange border border-guepardo-orange/20 shadow-inner" 
+                                : "text-[#A8A29E] hover:text-white hover:bg-white/5"
+                        )}
+                    >
+                        <Headset className="w-4 h-4" /> Suporte Entregador
                     </button>
                 </div>
 
