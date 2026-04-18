@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { useState, useEffect, useRef } from 'react';
-import { Send, X, ShieldAlert, MessageCircle, Bike, Store as StoreIcon, Headset } from 'lucide-react';
+import { Send, X, ShieldAlert, MessageCircle, Store as StoreIcon, Headset } from 'lucide-react';
 import type { Delivery } from '../types';
 import { cn } from '../lib/utils';
 
