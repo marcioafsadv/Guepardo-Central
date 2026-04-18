@@ -11,7 +11,7 @@ interface ChatMultilateralProps {
 
 const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }) => {
     const [messages, setMessages] = useState<any[]>([]);
-    const [activeChat, setActiveChat] = useState<'COURIER_CLIENT' | 'STORE_COURIER' | 'STORE_CENTRAL' | 'COURIER_CENTRAL'>('STORE_COURIER');
+    const [activeChat, setActiveChat] = useState<'STORE_COURIER' | 'STORE_CENTRAL' | 'COURIER_CENTRAL'>('STORE_COURIER');
     const [newMessage, setNewMessage] = useState('');
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -51,13 +51,14 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
 
     const subscribeToMessages = () => {
         const channel = supabase
-            .channel(`order-chat-${delivery.id}-${activeChat}`)
+            .channel(`order-chat-${delivery.id}`)
             .on('postgres_changes', { 
                 event: 'INSERT', 
                 schema: 'public', 
                 table: 'order_messages',
                 filter: `order_id=eq.${delivery.id}`
             }, (payload) => {
+                // Sincronizar qualquer mensagem do pedido, mas só mostrar se for da sala atual
                 if (payload.new.room_type === activeChat) {
                     setMessages((prev) => {
                         if (prev.some(m => m.id === payload.new.id)) return prev;
@@ -84,8 +85,9 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                     order_id: delivery.id,
                     room_type: activeChat,
                     sender_type: 'CENTRAL',
-                    sender_name: 'Suporte Guepardo',
-                    content: textToSend
+                    sender_name: 'Atendimento Guepardo',
+                    content: textToSend,
+                    created_at: new Date().toISOString()
                 });
 
             if (error) throw error;
@@ -128,17 +130,6 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                         )}
                     >
                         <StoreIcon className="w-4 h-4" /> Loja x Entregador
-                    </button>
-                    <button
-                        onClick={() => setActiveChat('COURIER_CLIENT')}
-                        className={cn(
-                            "flex-1 py-3 rounded-2xl text-[10px] font-bold transition-all flex flex-col items-center justify-center gap-1",
-                            activeChat === 'COURIER_CLIENT' 
-                                ? "bg-white/10 text-white border border-white/10 shadow-inner" 
-                                : "text-[#A8A29E] hover:text-white hover:bg-white/5"
-                        )}
-                    >
-                        <Bike className="w-4 h-4" /> Entregador x Cliente
                     </button>
                     <button
                         onClick={() => setActiveChat('STORE_CENTRAL')}
