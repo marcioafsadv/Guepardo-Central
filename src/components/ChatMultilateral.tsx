@@ -10,10 +10,9 @@ interface ChatMultilateralProps {
 }
 
 const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }) => {
-    const [messages, setMessages] = useState<Message[]>([]);
-    const [activeChat, setActiveChat] = useState<'courier-customer' | 'store-courier'>('courier-customer');
+    const [messages, setMessages] = useState<any[]>([]);
+    const [activeChat, setActiveChat] = useState<'COURIER_CLIENT' | 'STORE_COURIER'>('COURIER_CLIENT');
     const [newMessage, setNewMessage] = useState('');
-    const [conversation, setConversation] = useState<Conversation | null>(null);
     const [loading, setLoading] = useState(false);
     const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -24,89 +23,72 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
     useEffect(scrollToBottom, [messages]);
 
     useEffect(() => {
-        setupConversation();
+        fetchMessages();
+        const subscription = subscribeToMessages();
+        return () => {
+            if (subscription) supabase.removeChannel(subscription);
+        };
     }, [activeChat, delivery.id]);
 
-    const setupConversation = async () => {
+    const fetchMessages = async () => {
         setLoading(true);
         try {
-            // Find or create conversation
-            let { data: conv, error } = await supabase
-                .from('conversations')
+            const { data, error } = await supabase
+                .from('order_messages')
                 .select('*')
                 .eq('order_id', delivery.id)
-                .eq('type', activeChat)
-                .single();
-
-            if (error && error.code !== 'PGRST116') throw error;
-
-            if (!conv) {
-                const { data: newConv, error: createError } = await supabase
-                    .from('conversations')
-                    .insert({ order_id: delivery.id, type: activeChat })
-                    .select()
-                    .single();
-                
-                if (createError) throw createError;
-                conv = newConv;
-            }
-
-            setConversation(conv);
-            if (conv) {
-                fetchMessages(conv.id);
-                subscribeToMessages(conv.id);
-            }
+                .eq('room_type', activeChat)
+                .order('created_at', { ascending: true });
+            
+            if (error) throw error;
+            setMessages(data || []);
         } catch (err) {
-            console.error('Error setting up conversation:', err);
+            console.error('Error fetching messages:', err);
         } finally {
             setLoading(false);
         }
     };
 
-    const fetchMessages = async (convId: string) => {
-        const { data, error } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('conversation_id', convId)
-            .order('created_at', { ascending: true });
-        
-        if (error) console.error('Error fetching messages:', error);
-        else setMessages(data || []);
-    };
-
-    const subscribeToMessages = (convId: string) => {
-        const subscription = supabase
-            .channel(`chat-${convId}`)
+    const subscribeToMessages = () => {
+        const channel = supabase
+            .channel(`order-chat-${delivery.id}-${activeChat}`)
             .on('postgres_changes', { 
                 event: 'INSERT', 
                 schema: 'public', 
-                table: 'messages',
-                filter: `conversation_id=eq.${convId}`
+                table: 'order_messages',
+                filter: `order_id=eq.${delivery.id}`
             }, (payload) => {
-                setMessages((prev: Message[]) => [...prev, payload.new as Message]);
+                if (payload.new.room_type === activeChat) {
+                    setMessages((prev) => {
+                        if (prev.some(m => m.id === payload.new.id)) return prev;
+                        return [...prev, payload.new];
+                    });
+                }
             })
             .subscribe();
 
-        return () => {
-            supabase.removeChannel(subscription);
-        };
+        return channel;
     };
 
     const sendMessage = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!newMessage.trim() || !conversation) return;
+        if (!newMessage.trim()) return;
+
+        const textToSend = newMessage.trim();
+        setNewMessage('');
 
         try {
             const { error } = await supabase
-                .from('messages')
+                .from('order_messages')
                 .insert({
-                    conversation_id: conversation.id,
-                    content: newMessage,
-                    is_admin_intervention: true // Admin is sending from here
+                    order_id: delivery.id,
+                    room_type: activeChat,
+                    sender_type: 'CENTRAL',
+                    sender_name: 'Suporte Guepardo',
+                    content: textToSend
                 });
 
             if (error) throw error;
-            setNewMessage('');
         } catch (err) {
             console.error('Error sending message:', err);
         }
@@ -137,10 +119,10 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                 {/* Tabs */}
                 <div className="flex p-2 bg-black/20 gap-2">
                     <button
-                        onClick={() => setActiveChat('courier-customer')}
+                        onClick={() => setActiveChat('COURIER_CLIENT')}
                         className={cn(
                             "flex-1 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2",
-                            activeChat === 'courier-customer' 
+                            activeChat === 'COURIER_CLIENT' 
                                 ? "bg-white/10 text-white border border-white/10 shadow-inner" 
                                 : "text-[#A8A29E] hover:text-white hover:bg-white/5"
                         )}
@@ -148,10 +130,10 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                         <Bike className="w-4 h-4" /> Entregador x Cliente
                     </button>
                     <button
-                        onClick={() => setActiveChat('store-courier')}
+                        onClick={() => setActiveChat('STORE_COURIER')}
                         className={cn(
                             "flex-1 py-3 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2",
-                            activeChat === 'store-courier' 
+                            activeChat === 'STORE_COURIER' 
                                 ? "bg-white/10 text-white border border-white/10 shadow-inner" 
                                 : "text-[#A8A29E] hover:text-white hover:bg-white/5"
                         )}
@@ -172,23 +154,28 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                             <p className="text-xs font-bold uppercase tracking-widest">Nenhuma mensagem ainda</p>
                         </div>
                     ) : (
-                        messages.map((msg: Message) => (
+                        messages.map((msg: any) => (
                             <div 
                                 key={msg.id}
                                 className={cn(
                                     "flex flex-col max-w-[80%] gap-1",
-                                    msg.is_admin_intervention ? "ml-auto items-end" : "mr-auto items-start"
+                                    msg.sender_type === 'CENTRAL' ? "ml-auto items-end" : "mr-auto items-start"
                                 )}
                             >
                                 <div className={cn(
                                     "p-4 rounded-2xl text-sm font-medium relative group",
-                                    msg.is_admin_intervention 
+                                    msg.sender_type === 'CENTRAL' 
                                         ? "bg-brand-gradient text-white rounded-tr-none shadow-glow" 
                                         : "bg-white/10 text-white rounded-tl-none border border-white/10"
                                 )}>
-                                    {msg.is_admin_intervention && (
+                                    {msg.sender_type === 'CENTRAL' && (
                                         <div className="flex items-center gap-1 mb-1 text-[9px] font-black uppercase tracking-tighter opacity-80">
-                                            <ShieldAlert className="w-3 h-3" /> Intervenção Admin
+                                            <ShieldAlert className="w-3 h-3" /> Intervenção Central
+                                        </div>
+                                    )}
+                                    {!msg.sender_type?.includes('CENTRAL') && (
+                                        <div className="flex items-center gap-1 mb-1 text-[9px] font-black uppercase tracking-tighter text-guepardo-orange">
+                                            {msg.sender_name}
                                         </div>
                                     )}
                                     {msg.content}
