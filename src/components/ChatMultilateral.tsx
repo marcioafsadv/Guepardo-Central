@@ -107,7 +107,7 @@ const ChatMultilateral: React.FC<ChatMultilateralProps> = ({ delivery, onClose }
                         </div>
                         <div>
                             <h2 className="text-xl font-black text-white italic">CHAT MULTILATERAL</h2>
-                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Pedido #{delivery.id.slice(0, 8)}</p>
+                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Pedido #{delivery.items?.displayId || delivery.id.slice(0, 8).toUpperCase()}</p>
                         </div>
                     </div>
                     <button 
