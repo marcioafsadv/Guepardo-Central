@@ -89,7 +89,6 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
         setUploadingDoc(docType);
         try {
             const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-            const isPdf = ext === 'pdf';
             
             const baseName = docType === 'CNH Frente' ? 'cnh_front' :
                              docType === 'CNH Verso' ? 'cnh_back' :
