@@ -155,21 +155,24 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                              docType === 'Foto Veículo' ? 'bike_photo_url' : 'avatar_url';
 
             if (docField === 'avatar_url') {
-                await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', driver.id);
+                const { error: avatarError } = await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', driver.id);
+                if (avatarError) throw avatarError;
             } else {
                 // Ensure record exists in vehicles
                 const { data: existingVehicle } = await supabase.from('vehicles').select('user_id').eq('user_id', driver.id).maybeSingle();
                 
                 if (existingVehicle) {
-                    await supabase.from('vehicles').update({ [docField]: newUrl }).eq('user_id', driver.id);
+                    const { error: updateError } = await supabase.from('vehicles').update({ [docField]: newUrl }).eq('user_id', driver.id);
+                    if (updateError) throw updateError;
                 } else {
-                    await supabase.from('vehicles').insert({ 
+                    const { error: insertError } = await supabase.from('vehicles').insert({ 
                         user_id: driver.id, 
                         [docField]: newUrl,
                         model: driver.vehicle_model || 'N/A',
                         plate: driver.vehicle_plate || 'N/A',
                         cnh_number: driver.cnh_number || 'N/A'
                     });
+                    if (insertError) throw insertError;
                 }
             }
 
