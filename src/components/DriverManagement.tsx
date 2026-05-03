@@ -15,7 +15,8 @@ import {
     Map as MapIcon,
     CreditCard,
     X,
-    RotateCw
+    RotateCw,
+    Upload
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
@@ -39,6 +40,7 @@ interface DriverDetailsModalProps {
     driver: DriverWithDetails;
     onClose: () => void;
     onStatusUpdate: (status: string) => void;
+    onRefresh: () => void;
 }
 
 const BRAZILIAN_BANKS: Record<string, string> = {
@@ -70,10 +72,53 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
     const [updating, setUpdating] = useState(false);
     const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string } | null>(null);
     const [rotation, setRotation] = useState(0);
+    const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+    const [docUrls, setDocUrls] = useState({
+        cnh_front: driver.vehicles?.cnh_front_url,
+        cnh_back: driver.vehicles?.cnh_back_url,
+        crlv: driver.vehicles?.crlv_url,
+        bike_photo: driver.vehicles?.bike_photo_url,
+        avatar: driver.avatar_url
+    });
 
     useEffect(() => {
         setRotation(0);
     }, [viewingPhoto]);
+
+    const handleUpload = async (docType: string, file: File) => {
+        setUploadingDoc(docType);
+        try {
+            const fileName = docType === 'CNH Frente' ? 'cnh_front.jpg' :
+                             docType === 'CNH Verso' ? 'cnh_back.jpg' :
+                             docType === 'CRLV' ? 'crlv.jpg' :
+                             docType === 'Foto Veículo' ? 'bike_photo.jpg' : 'avatar.jpg';
+            
+            const filePath = `${driver.id}/${fileName}`;
+            
+            const { error: uploadError } = await supabase.storage
+                .from('courier-documents')
+                .upload(filePath, file, { upsert: true });
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage.from('courier-documents').getPublicUrl(filePath);
+            const newUrl = `${data.publicUrl}?t=${Date.now()}`;
+            
+            const docKey = docType === 'CNH Frente' ? 'cnh_front' :
+                           docType === 'CNH Verso' ? 'cnh_back' :
+                           docType === 'CRLV' ? 'crlv' :
+                           docType === 'Foto Veículo' ? 'bike_photo' : 'avatar';
+
+            setDocUrls(prev => ({ ...prev, [docKey]: newUrl }));
+            onRefresh();
+            
+        } catch (err) {
+            console.error('Error uploading document:', err);
+            alert('Erro ao enviar documento. Tente novamente.');
+        } finally {
+            setUploadingDoc(null);
+        }
+    };
 
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -101,8 +146,8 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                     >
                         <div className="absolute -inset-1 bg-brand-gradient rounded-full blur opacity-50 group-hover:opacity-100 transition duration-1000"></div>
                         <div className="w-32 h-32 rounded-full bg-guepardo-brown-light border-4 border-white/10 overflow-hidden relative shadow-2xl">
-                            {driver.avatar_url ? (
-                                <img src={driver.avatar_url} alt={driver.full_name} className="w-full h-full object-cover" />
+                            {docUrls.avatar ? (
+                                <img src={docUrls.avatar} alt={driver.full_name} className="w-full h-full object-cover" />
                             ) : (
                                 <div className="w-full h-full flex items-center justify-center text-4xl font-black text-white bg-guepardo-orange/20">
                                     {driver.full_name?.charAt(0) || 'D'}
@@ -306,27 +351,47 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
                             {[
-                                { label: 'CNH Frente', url: driver.vehicles?.cnh_front_url },
-                                { label: 'CNH Verso', url: driver.vehicles?.cnh_back_url },
-                                { label: 'CRLV', url: driver.vehicles?.crlv_url },
-                                { label: 'Foto Veículo', url: driver.vehicles?.bike_photo_url }
+                                { label: 'CNH Frente', url: docUrls.cnh_front },
+                                { label: 'CNH Verso', url: docUrls.cnh_back },
+                                { label: 'CRLV', url: docUrls.crlv },
+                                { label: 'Foto Veículo', url: docUrls.bike_photo }
                             ].map((doc, i) => (
-                                <div 
-                                    key={i} 
-                                    className="space-y-2 group cursor-pointer transition-all duration-500 hover:scale-105"
-                                    onClick={() => doc.url && setViewingPhoto({ url: doc.url, label: doc.label })}
-                                >
-                                    <div className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover:border-guepardo-orange/50">
+                                <div key={i} className="space-y-3 group/doc relative">
+                                    <div 
+                                        className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover/doc:border-guepardo-orange/50 transition-all cursor-pointer"
+                                        onClick={() => doc.url && setViewingPhoto({ url: doc.url, label: doc.label })}
+                                    >
                                         {doc.url ? (
-                                            <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                                            <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-transform group-hover/doc:scale-110" />
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-bold text-[#57534E] gap-2">
                                                 <AlertCircle className="w-5 h-5 opacity-20" />
                                                 NÃO ANEXADO
                                             </div>
                                         )}
+                                        
+                                        {uploadingDoc === doc.label && (
+                                            <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-20">
+                                                <div className="w-6 h-6 border-2 border-guepardo-orange/20 border-t-guepardo-orange rounded-full animate-spin"></div>
+                                            </div>
+                                        )}
                                     </div>
-                                    <p className="text-[10px] font-black text-center text-[#A8A29E] tracking-widest uppercase">{doc.label}</p>
+                                    
+                                    <div className="flex items-center justify-between px-1">
+                                        <p className="text-[10px] font-black text-[#A8A29E] tracking-widest uppercase">{doc.label}</p>
+                                        <label className="cursor-pointer p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-[#A8A29E] hover:text-white transition-all shadow-sm">
+                                            <Upload className="w-3 h-3" />
+                                            <input 
+                                                type="file" 
+                                                className="hidden" 
+                                                accept="image/*"
+                                                onChange={(e) => {
+                                                    const file = e.target.files?.[0];
+                                                    if (file) handleUpload(doc.label, file);
+                                                }}
+                                            />
+                                        </label>
+                                    </div>
                                 </div>
                             ))}
                         </div>
@@ -767,6 +832,7 @@ const DriverManagement = () => {
                     driver={selectedDriver}
                     onClose={() => setSelectedDriver(null)}
                     onStatusUpdate={(newStatus) => handleUpdateStatus(selectedDriver.id, newStatus)}
+                    onRefresh={fetchDrivers}
                 />
             )}
         </div>
