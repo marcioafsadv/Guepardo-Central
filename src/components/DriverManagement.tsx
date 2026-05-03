@@ -75,6 +75,9 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
     const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string } | null>(null);
     const [rotation, setRotation] = useState(0);
     const [zoom, setZoom] = useState(1);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
     const [docUrls, setDocUrls] = useState({
         cnh_front: driver.vehicles?.cnh_front_url,
@@ -87,7 +90,32 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
     useEffect(() => {
         setRotation(0);
         setZoom(1);
+        setPosition({ x: 0, y: 0 });
     }, [viewingPhoto]);
+
+    useEffect(() => {
+        if (zoom === 1) setPosition({ x: 0, y: 0 });
+    }, [zoom]);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (zoom > 1) {
+            setIsDragging(true);
+            setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+        }
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (isDragging && zoom > 1) {
+            setPosition({
+                x: e.clientX - dragStart.x,
+                y: e.clientY - dragStart.y
+            });
+        }
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
 
     const handleUpload = async (docType: string, file: File) => {
         setUploadingDoc(docType);
@@ -528,14 +556,22 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                         <div className="relative w-full flex-1 bg-black/40 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl group/viewer flex items-center justify-center">
                             <div className="absolute inset-0 bg-brand-gradient opacity-5"></div>
                             {!viewingPhoto.url.toLowerCase().includes('.pdf') && (
-                                <div className="absolute inset-0 overflow-auto flex items-center justify-center p-12 custom-scrollbar">
+                                <div 
+                                    className="absolute inset-0 overflow-hidden flex items-center justify-center p-12 custom-scrollbar"
+                                    onMouseMove={handleMouseMove}
+                                    onMouseUp={handleMouseUp}
+                                    onMouseLeave={handleMouseUp}
+                                >
                                     <img 
                                         src={viewingPhoto.url} 
                                         alt={viewingPhoto.label} 
-                                        className="max-w-none transition-transform duration-300 ease-out shadow-2xl origin-center"
+                                        className={`max-w-none transition-transform ${isDragging ? 'duration-0' : 'duration-300'} ease-out shadow-2xl origin-center select-none`}
                                         style={{ 
-                                            transform: `rotate(${rotation}deg) scale(${zoom})`,
+                                            transform: `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoom})`,
+                                            cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
                                         }}
+                                        onMouseDown={handleMouseDown}
+                                        draggable={false}
                                     />
                                 </div>
                             )}
