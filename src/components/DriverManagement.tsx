@@ -13,7 +13,8 @@ import {
     ShieldCheck,
     FileText,
     Map as MapIcon,
-    CreditCard
+    CreditCard,
+    X
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
@@ -66,6 +67,15 @@ const getBankName = (code?: string, name?: string) => {
 
 const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsModalProps) => {
     const [updating, setUpdating] = useState(false);
+    const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string } | null>(null);
+
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setViewingPhoto(null);
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, []);
 
     const handleUpdateStatus = async (newStatus: string) => {
         setUpdating(true);
@@ -79,7 +89,10 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
 
                 {/* Left Panel: Profile Summary */}
                 <div className="md:w-1/3 bg-black/20 border-r border-white/10 p-8 flex flex-col items-center text-center overflow-y-auto">
-                    <div className="relative group mb-6">
+                    <div 
+                        className="relative group mb-6 cursor-pointer"
+                        onClick={() => driver.avatar_url && setViewingPhoto({ url: driver.avatar_url, label: 'Foto de Perfil' })}
+                    >
                         <div className="absolute -inset-1 bg-brand-gradient rounded-full blur opacity-50 group-hover:opacity-100 transition duration-1000"></div>
                         <div className="w-32 h-32 rounded-full bg-guepardo-brown-light border-4 border-white/10 overflow-hidden relative shadow-2xl">
                             {driver.avatar_url ? (
@@ -292,7 +305,11 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                                 { label: 'CRLV', url: driver.vehicles?.crlv_url },
                                 { label: 'Foto Veículo', url: driver.vehicles?.bike_photo_url }
                             ].map((doc, i) => (
-                                <div key={i} className="space-y-2 group cursor-pointer transition-all duration-500 hover:scale-105">
+                                <div 
+                                    key={i} 
+                                    className="space-y-2 group cursor-pointer transition-all duration-500 hover:scale-105"
+                                    onClick={() => doc.url && setViewingPhoto({ url: doc.url, label: doc.label })}
+                                >
                                     <div className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover:border-guepardo-orange/50">
                                         {doc.url ? (
                                             <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
@@ -310,6 +327,52 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                     </section>
                 </div>
             </div>
+
+            {/* Full Screen Photo Viewer Overlay */}
+            {viewingPhoto && (
+                <div 
+                    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-300 p-4 md:p-10"
+                    onClick={() => setViewingPhoto(null)}
+                >
+                    <button 
+                        className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:rotate-90 z-[70]"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingPhoto(null);
+                        }}
+                    >
+                        <X className="w-8 h-8" />
+                    </button>
+                    
+                    <div 
+                        className="relative max-w-5xl w-full h-full flex flex-col items-center justify-center gap-6 animate-in zoom-in-95 duration-300"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-full flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <h3 className="text-2xl font-black text-white uppercase tracking-widest leading-none">{viewingPhoto.label}</h3>
+                                <p className="text-guepardo-orange text-[10px] font-black uppercase tracking-[0.3em] mt-2">Conferência de Documentação</p>
+                            </div>
+                            <div className="hidden md:block px-4 py-2 bg-white/5 border border-white/10 rounded-xl">
+                                <p className="text-[10px] font-bold text-[#A8A29E] uppercase tracking-widest">{driver.full_name}</p>
+                            </div>
+                        </div>
+                        
+                        <div className="relative w-full flex-1 bg-black/40 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl group/viewer">
+                            <div className="absolute inset-0 bg-brand-gradient opacity-5"></div>
+                            <img 
+                                src={viewingPhoto.url} 
+                                alt={viewingPhoto.label} 
+                                className="w-full h-full object-contain relative z-10"
+                            />
+                        </div>
+                        
+                        <p className="text-[#A8A29E] text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+                            Clique fora para fechar • ESC para sair
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
