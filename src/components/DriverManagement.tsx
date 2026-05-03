@@ -88,22 +88,59 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
     const handleUpload = async (docType: string, file: File) => {
         setUploadingDoc(docType);
         try {
-            const fileName = docType === 'CNH Frente' ? 'cnh_front.jpg' :
-                             docType === 'CNH Verso' ? 'cnh_back.jpg' :
-                             docType === 'CRLV' ? 'crlv.jpg' :
-                             docType === 'Foto Veículo' ? 'bike_photo.jpg' : 'avatar.jpg';
+            const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+            const isPdf = ext === 'pdf';
             
+            const baseName = docType === 'CNH Frente' ? 'cnh_front' :
+                             docType === 'CNH Verso' ? 'cnh_back' :
+                             docType === 'CRLV' ? 'crlv' :
+                             docType === 'Foto Veículo' ? 'bike_photo' : 'avatar';
+            
+            const fileName = `${baseName}.${ext}`;
             const filePath = `${driver.id}/${fileName}`;
+            
+            console.log('Uploading to:', filePath, 'Type:', file.type);
             
             const { error: uploadError } = await supabase.storage
                 .from('courier-documents')
-                .upload(filePath, file, { upsert: true });
+                .upload(filePath, file, { 
+                    upsert: true,
+                    contentType: file.type
+                });
 
-            if (uploadError) throw uploadError;
+            if (uploadError) {
+                console.error('Supabase Storage Error:', uploadError);
+                throw uploadError;
+            }
 
             const { data } = supabase.storage.from('courier-documents').getPublicUrl(filePath);
             const newUrl = `${data.publicUrl}?t=${Date.now()}`;
             
+            // Update Database
+            const docField = docType === 'CNH Frente' ? 'cnh_front_url' :
+                             docType === 'CNH Verso' ? 'cnh_back_url' :
+                             docType === 'CRLV' ? 'crlv_url' :
+                             docType === 'Foto Veículo' ? 'bike_photo_url' : 'avatar_url';
+
+            if (docField === 'avatar_url') {
+                await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', driver.id);
+            } else {
+                // Ensure record exists in vehicles
+                const { data: existingVehicle } = await supabase.from('vehicles').select('user_id').eq('user_id', driver.id).maybeSingle();
+                
+                if (existingVehicle) {
+                    await supabase.from('vehicles').update({ [docField]: newUrl }).eq('user_id', driver.id);
+                } else {
+                    await supabase.from('vehicles').insert({ 
+                        user_id: driver.id, 
+                        [docField]: newUrl,
+                        model: driver.vehicle_model || 'N/A',
+                        plate: driver.vehicle_plate || 'N/A',
+                        cnh_number: driver.cnh_number || 'N/A'
+                    });
+                }
+            }
+
             const docKey = docType === 'CNH Frente' ? 'cnh_front' :
                            docType === 'CNH Verso' ? 'cnh_back' :
                            docType === 'CRLV' ? 'crlv' :
@@ -112,9 +149,9 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             setDocUrls(prev => ({ ...prev, [docKey]: newUrl }));
             onRefresh();
             
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error uploading document:', err);
-            alert('Erro ao enviar documento. Tente novamente.');
+            alert(`Erro ao enviar documento: ${err.message || 'Erro desconhecido'}`);
         } finally {
             setUploadingDoc(null);
         }
@@ -362,7 +399,14 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                         onClick={() => doc.url && setViewingPhoto({ url: doc.url, label: doc.label })}
                                     >
                                         {doc.url ? (
-                                            <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-transform group-hover/doc:scale-110" />
+                                            doc.url.toLowerCase().includes('.pdf') ? (
+                                                <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/5 text-red-400 gap-2">
+                                                    <FileText className="w-10 h-10" />
+                                                    <span className="text-[10px] font-black tracking-widest">VISUALIZAR PDF</span>
+                                                </div>
+                                            ) : (
+                                                <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-transform group-hover/doc:scale-110" />
+                                            )
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-bold text-[#57534E] gap-2">
                                                 <AlertCircle className="w-5 h-5 opacity-20" />
@@ -384,7 +428,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                             <input 
                                                 type="file" 
                                                 className="hidden" 
-                                                accept="image/*"
+                                                accept="image/*,application/pdf"
                                                 onChange={(e) => {
                                                     const file = e.target.files?.[0];
                                                     if (file) handleUpload(doc.label, file);
@@ -444,12 +488,20 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                         
                         <div className="relative w-full flex-1 bg-black/40 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl group/viewer flex items-center justify-center">
                             <div className="absolute inset-0 bg-brand-gradient opacity-5"></div>
-                            <img 
-                                src={viewingPhoto.url} 
-                                alt={viewingPhoto.label} 
-                                className="max-w-full max-h-full object-contain relative z-10 transition-transform duration-500 ease-out shadow-2xl"
-                                style={{ transform: `rotate(${rotation}deg)` }}
-                            />
+                            {viewingPhoto.url.toLowerCase().includes('.pdf') ? (
+                                <iframe 
+                                    src={viewingPhoto.url} 
+                                    className="w-full h-full rounded-[2.5rem] relative z-10"
+                                    title={viewingPhoto.label}
+                                />
+                            ) : (
+                                <img 
+                                    src={viewingPhoto.url} 
+                                    alt={viewingPhoto.label} 
+                                    className="max-w-full max-h-full object-contain relative z-10 transition-transform duration-500 ease-out shadow-2xl"
+                                    style={{ transform: `rotate(${rotation}deg)` }}
+                                />
+                            )}
                         </div>
                         
                         <p className="text-[#A8A29E] text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
