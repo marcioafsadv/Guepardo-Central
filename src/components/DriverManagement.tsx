@@ -18,7 +18,8 @@ import {
     RotateCw,
     Upload,
     ZoomIn,
-    ZoomOut
+    ZoomOut,
+    ExternalLink
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
@@ -517,6 +518,19 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                             </div>
                         )}
 
+                        {viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                            <a 
+                                href={viewingPhoto.url} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 flex items-center gap-2 group/open"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Abrir em Nova Aba"
+                            >
+                                <ExternalLink className="w-6 h-6" />
+                                <span className="text-[10px] font-black uppercase tracking-widest pr-1">Abrir Original</span>
+                            </a>
+                        )}
                         <button 
                             className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 flex items-center gap-2 group/rotate"
                             onClick={(e) => {
@@ -565,12 +579,15 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                     <img 
                                         src={viewingPhoto.url} 
                                         alt={viewingPhoto.label} 
-                                        className={`max-w-none transition-transform ${isDragging ? 'duration-0' : 'duration-300'} ease-out shadow-2xl origin-center select-none`}
+                                        className={`transition-transform ${isDragging ? 'duration-0' : 'duration-300'} ease-out shadow-2xl origin-center select-none`}
                                         style={{ 
                                             transform: `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoom})`,
+                                            maxWidth: zoom === 1 ? '100%' : 'none',
+                                            maxHeight: zoom === 1 ? '100%' : 'none',
                                             cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
                                         }}
                                         onMouseDown={handleMouseDown}
+                                        onDragStart={(e) => e.preventDefault()}
                                         draggable={false}
                                     />
                                 </div>
