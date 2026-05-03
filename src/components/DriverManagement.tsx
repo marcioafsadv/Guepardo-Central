@@ -85,6 +85,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
         cnh_back: driver.vehicles?.cnh_back_url,
         crlv: driver.vehicles?.crlv_url,
         bike_photo: driver.vehicles?.bike_photo_url,
+        residence: driver.vehicles?.proof_of_residence_url,
         avatar: driver.avatar_url
     });
 
@@ -126,7 +127,8 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             const baseName = docType === 'CNH Frente' ? 'cnh_front' :
                              docType === 'CNH Verso' ? 'cnh_back' :
                              docType === 'CRLV' ? 'crlv' :
-                             docType === 'Foto Veículo' ? 'bike_photo' : 'avatar';
+                             docType === 'Foto Veículo' ? 'bike_photo' : 
+                             docType === 'Comprovante Residência' ? 'residence' : 'avatar';
             
             const fileName = `${baseName}.${ext}`;
             const filePath = `${driver.id}/${fileName}`;
@@ -152,7 +154,8 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             const docField = docType === 'CNH Frente' ? 'cnh_front_url' :
                              docType === 'CNH Verso' ? 'cnh_back_url' :
                              docType === 'CRLV' ? 'crlv_url' :
-                             docType === 'Foto Veículo' ? 'bike_photo_url' : 'avatar_url';
+                             docType === 'Foto Veículo' ? 'bike_photo_url' : 
+                             docType === 'Comprovante Residência' ? 'proof_of_residence_url' : 'avatar_url';
 
             if (docField === 'avatar_url') {
                 const { error: avatarError } = await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', driver.id);
@@ -179,7 +182,8 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             const docKey = docType === 'CNH Frente' ? 'cnh_front' :
                            docType === 'CNH Verso' ? 'cnh_back' :
                            docType === 'CRLV' ? 'crlv' :
-                           docType === 'Foto Veículo' ? 'bike_photo' : 'avatar';
+                           docType === 'Foto Veículo' ? 'bike_photo' : 
+                           docType === 'Comprovante Residência' ? 'residence' : 'avatar';
 
             setDocUrls(prev => ({ ...prev, [docKey]: newUrl }));
             onRefresh();
@@ -426,7 +430,8 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                 { label: 'CNH Frente', url: docUrls.cnh_front },
                                 { label: 'CNH Verso', url: docUrls.cnh_back },
                                 { label: 'CRLV', url: docUrls.crlv },
-                                { label: 'Foto Veículo', url: docUrls.bike_photo }
+                                { label: 'Foto Veículo', url: docUrls.bike_photo },
+                                { label: 'Comprovante Residência', url: docUrls.residence }
                             ].map((doc, i) => (
                                 <div key={i} className="space-y-3 group/doc relative">
                                     <div 
