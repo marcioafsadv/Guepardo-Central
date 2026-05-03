@@ -68,7 +68,7 @@ const getBankName = (code?: string, name?: string) => {
     return BRAZILIAN_BANKS[cleanCode] || `Banco (${code})`;
 };
 
-const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsModalProps) => {
+const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: DriverDetailsModalProps) => {
     const [updating, setUpdating] = useState(false);
     const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string } | null>(null);
     const [rotation, setRotation] = useState(0);
