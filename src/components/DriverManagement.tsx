@@ -14,7 +14,8 @@ import {
     FileText,
     Map as MapIcon,
     CreditCard,
-    X
+    X,
+    RotateCw
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
@@ -68,6 +69,11 @@ const getBankName = (code?: string, name?: string) => {
 const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsModalProps) => {
     const [updating, setUpdating] = useState(false);
     const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string } | null>(null);
+    const [rotation, setRotation] = useState(0);
+
+    useEffect(() => {
+        setRotation(0);
+    }, [viewingPhoto]);
 
     useEffect(() => {
         const handleEsc = (e: KeyboardEvent) => {
@@ -334,15 +340,28 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                     className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-300 p-4 md:p-10"
                     onClick={() => setViewingPhoto(null)}
                 >
-                    <button 
-                        className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:rotate-90 z-[70]"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            setViewingPhoto(null);
-                        }}
-                    >
-                        <X className="w-8 h-8" />
-                    </button>
+                    <div className="absolute top-6 right-6 flex items-center gap-3 z-[70]">
+                        <button 
+                            className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 flex items-center gap-2 group/rotate"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setRotation(prev => (prev + 90) % 360);
+                            }}
+                            title="Girar Foto"
+                        >
+                            <RotateCw className="w-6 h-6 transition-transform group-hover:rotate-45" />
+                            <span className="text-[10px] font-black uppercase tracking-widest pr-1">Girar</span>
+                        </button>
+                        <button 
+                            className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:rotate-90"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setViewingPhoto(null);
+                            }}
+                        >
+                            <X className="w-8 h-8" />
+                        </button>
+                    </div>
                     
                     <div 
                         className="relative max-w-5xl w-full h-full flex flex-col items-center justify-center gap-6 animate-in zoom-in-95 duration-300"
@@ -358,12 +377,13 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate }: DriverDetailsMo
                             </div>
                         </div>
                         
-                        <div className="relative w-full flex-1 bg-black/40 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl group/viewer">
+                        <div className="relative w-full flex-1 bg-black/40 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl group/viewer flex items-center justify-center">
                             <div className="absolute inset-0 bg-brand-gradient opacity-5"></div>
                             <img 
                                 src={viewingPhoto.url} 
                                 alt={viewingPhoto.label} 
-                                className="w-full h-full object-contain relative z-10"
+                                className="max-w-full max-h-full object-contain relative z-10 transition-transform duration-500 ease-out shadow-2xl"
+                                style={{ transform: `rotate(${rotation}deg)` }}
                             />
                         </div>
                         
