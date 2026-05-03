@@ -173,7 +173,13 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                         [docField]: newUrl,
                         model: driver.vehicle_model || 'N/A',
                         plate: driver.vehicle_plate || 'N/A',
-                        cnh_number: driver.cnh_number || 'N/A'
+                        cnh_number: driver.cnh_number || 'N/A',
+                        cnh_validity: new Date().toISOString().split('T')[0], // Default to today
+                        plate_state: 'N/A',
+                        plate_city: 'N/A',
+                        year: new Date().getFullYear(),
+                        color: 'N/A',
+                        renavam: 'N/A'
                     });
                     if (insertError) throw insertError;
                 }
