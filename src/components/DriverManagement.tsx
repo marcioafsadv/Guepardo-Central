@@ -16,7 +16,9 @@ import {
     CreditCard,
     X,
     RotateCw,
-    Upload
+    Upload,
+    ZoomIn,
+    ZoomOut
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
@@ -72,6 +74,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
     const [updating, setUpdating] = useState(false);
     const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string } | null>(null);
     const [rotation, setRotation] = useState(0);
+    const [zoom, setZoom] = useState(1);
     const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
     const [docUrls, setDocUrls] = useState({
         cnh_front: driver.vehicles?.cnh_front_url,
@@ -83,6 +86,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
 
     useEffect(() => {
         setRotation(0);
+        setZoom(1);
     }, [viewingPhoto]);
 
     const handleUpload = async (docType: string, file: File) => {
@@ -448,7 +452,43 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                     className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-300 p-4 md:p-10"
                     onClick={() => setViewingPhoto(null)}
                 >
-                    <div className="absolute top-6 right-6 flex items-center gap-3 z-[70]">
+                    <div className="absolute top-6 right-6 flex items-center gap-4 z-[70]">
+                        {/* Zoom Controls */}
+                        {!viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                            <div className="flex bg-white/10 rounded-full p-1 border border-white/10 shadow-2xl backdrop-blur-md">
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setZoom(prev => Math.max(prev - 0.25, 0.5));
+                                    }}
+                                    className="p-2 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all active:scale-95"
+                                    title="Diminuir Zoom"
+                                >
+                                    <ZoomOut className="w-5 h-5" />
+                                </button>
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setZoom(1);
+                                    }}
+                                    className="px-2 min-w-[3.5rem] flex items-center justify-center hover:bg-white/5 rounded-lg transition-colors"
+                                    title="Resetar Zoom"
+                                >
+                                    <span className="text-[10px] font-black text-white/50">{Math.round(zoom * 100)}%</span>
+                                </button>
+                                <button 
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setZoom(prev => Math.min(prev + 0.25, 4));
+                                    }}
+                                    className="p-2 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all active:scale-95"
+                                    title="Aumentar Zoom"
+                                >
+                                    <ZoomIn className="w-5 h-5" />
+                                </button>
+                            </div>
+                        )}
+
                         <button 
                             className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 flex items-center gap-2 group/rotate"
                             onClick={(e) => {
@@ -487,18 +527,23 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                         
                         <div className="relative w-full flex-1 bg-black/40 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl group/viewer flex items-center justify-center">
                             <div className="absolute inset-0 bg-brand-gradient opacity-5"></div>
-                            {viewingPhoto.url.toLowerCase().includes('.pdf') ? (
+                            {!viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                                <div className="absolute inset-0 overflow-auto flex items-center justify-center p-12 custom-scrollbar">
+                                    <img 
+                                        src={viewingPhoto.url} 
+                                        alt={viewingPhoto.label} 
+                                        className="max-w-none transition-transform duration-300 ease-out shadow-2xl origin-center"
+                                        style={{ 
+                                            transform: `rotate(${rotation}deg) scale(${zoom})`,
+                                        }}
+                                    />
+                                </div>
+                            )}
+                            {viewingPhoto.url.toLowerCase().includes('.pdf') && (
                                 <iframe 
                                     src={viewingPhoto.url} 
                                     className="w-full h-full rounded-[2.5rem] relative z-10"
                                     title={viewingPhoto.label}
-                                />
-                            ) : (
-                                <img 
-                                    src={viewingPhoto.url} 
-                                    alt={viewingPhoto.label} 
-                                    className="max-w-full max-h-full object-contain relative z-10 transition-transform duration-500 ease-out shadow-2xl"
-                                    style={{ transform: `rotate(${rotation}deg)` }}
                                 />
                             )}
                         </div>
