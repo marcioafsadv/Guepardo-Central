@@ -325,6 +325,15 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                 <XCircle className="w-4 h-4" /> BLOQUEAR ACESSO
                             </button>
                         )}
+                        {driver.status !== 'rejected' && (
+                            <button
+                                onClick={() => handleUpdateStatus('rejected')}
+                                disabled={updating}
+                                className="w-full py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl font-black text-orange-500 text-sm transition-all flex items-center justify-center gap-2"
+                            >
+                                <RotateCw className="w-4 h-4" /> SOLICITAR REVISÃO (LIBERAR EDIÇÃO)
+                            </button>
+                        )}
                         {driver.status === 'blocked' && (
                             <button
                                 onClick={() => handleUpdateStatus('approved')}

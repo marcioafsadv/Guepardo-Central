@@ -1,3 +1,4 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
 
@@ -17,14 +18,20 @@ serve(async (req) => {
   const ASAAS_API_URL = Deno.env.get('ASAAS_API_URL') || 'https://api.asaas.com/v3'
 
   try {
-    const { storeId, amount, billingType = 'PIX', creditCard, creditCardHolderInfo } = await req.json()
+    const body = await req.json()
+    const { storeId, amount, billingType = 'PIX', creditCard, creditCardHolderInfo, description } = body
     console.log(`[DEBUG] Recebido: storeId=${storeId}, amount=${amount}, billingType=${billingType}`)
 
     if (!storeId || !amount) {
       throw new Error(`Dados insuficientes (refe: ${storeId}/${amount})`)
     }
 
-    if (amount < 20) {
+    // O valor base que será creditado na carteira
+    const baseAmount = Number(amount)
+    // Se for PIX, adicionamos a taxa de 1.99 para o Asaas, mas salvamos o baseAmount no banco
+    const asaasAmount = billingType === 'PIX' ? baseAmount + 1.99 : baseAmount
+
+    if (baseAmount < 20) {
       throw new Error('O valor mínimo para recarga é R$ 20,00')
     }
 
@@ -37,9 +44,9 @@ serve(async (req) => {
 
     if (storeError) {
       console.error(`[DEBUG] Erro ao buscar loja ${storeId}:`, storeError.message)
-      throw new Error(`Loja ${storeId} não encontrada no banco`)
+      throw new Error(`Loja ${storeId} não encontrada. Verifique se o ID está correto.`)
     }
-    if (!store) throw new Error(`Loja ${storeId} retornou objeto vazio`)
+    if (!store) throw new Error(`Loja ${storeId} não encontrada no sistema.`)
 
     let asaasCustomerId = store.asaas_customer_id
     
@@ -77,15 +84,16 @@ serve(async (req) => {
     let pixData: any = null
 
     if (billingType === 'PIX' || billingType === 'CREDIT_CARD') {
-      console.log(`Gerando cobrança de R$ ${amount} (${billingType}) para o cliente ${asaasCustomerId}`)
+      console.log(`Gerando cobrança de R$ ${asaasAmount} (${billingType}) para o cliente ${asaasCustomerId}`)
       
       const paymentRequest: any = {
         customer: asaasCustomerId,
         billingType: billingType,
-        value: amount,
-        dueDate: new Date().toISOString().split('T')[0],
-        description: `Recarga de Saldo - Guepardo`,
-        externalReference: `RECARGA-${Date.now()}`
+        value: asaasAmount,
+        dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString().split('T')[0], // 24h
+        description: description || 'Recarga de Saldo - Guepardo',
+        externalReference: `RECARGA-${Date.now()}`,
+        postalService: false
       }
 
       // Se for cartão, adiciona os dados necessários
@@ -112,7 +120,11 @@ serve(async (req) => {
       })
 
       paymentData = await paymentRes.json()
-      if (!paymentRes.ok) throw new Error(`Falha ao gerar cobrança no Asaas: ${JSON.stringify(paymentData)}`)
+      if (!paymentRes.ok) {
+        console.error(`[ASAAS ERROR] Status: ${paymentRes.status}`, paymentData)
+        const errorMessage = paymentData.errors?.[0]?.description || JSON.stringify(paymentData)
+        throw new Error(`Asaas: ${errorMessage}`)
+      }
 
       // 4. Se for PIX, buscar o QR Code
       if (billingType === 'PIX') {
@@ -126,21 +138,18 @@ serve(async (req) => {
       }
     } else if (billingType === 'MANUAL') {
         console.log(`Registrando intenção de recarga MANUAL para a loja: ${storeId}`)
-        // Pula Asaas, paymentData será nulo o que o insert do BD trata
     } else {
         throw new Error(`Tipo de cobrança '${billingType}' não suportado`)
     }
 
-    // 5. Registrar transação no banco (Construção dinâmica para evitar schemas incompatíveis)
-    // Forçamos o valor para ser positivo e com 2 casas decimais (float) para evitar erro de constraint
-    const finalAmount = Math.abs(Number(amount))
-
+    // 5. Registrar transação no Banco (Usando o baseAmount para o saldo)
     const transactionData: any = {
       store_id: storeId,
-      amount: finalAmount,
+      amount: baseAmount,
       type: 'RECHARGE',
-      payment_method: billingType === 'MANUAL' ? 'PIX' : billingType, // Teste: Usando PIX se for Manual para verificar constraint
-      status: billingType === 'CREDIT_CARD' || (paymentData?.status === 'CONFIRMED' || paymentData?.status === 'RECEIVED') ? 'CONFIRMED' : 'PENDING'
+      status: 'PENDING',
+      payment_method: billingType === 'MANUAL' ? 'PIX' : billingType, 
+      description: description || 'Recarga de Saldo - Guepardo'
     }
 
     if (pixData?.encodedImage) transactionData.pix_qr_code = pixData.encodedImage
@@ -156,13 +165,12 @@ serve(async (req) => {
       .single()
 
     if (txError) {
-      console.error('Erro ao registrar transação:', txError.message)
+      console.error('[DB ERROR] Falha ao inserir transação:', txError)
       return new Response(
         JSON.stringify({ 
           success: false, 
-          error: `Erro no Banco de Dados: ${txError.message}`,
-          details: txError,
-          payloadSent: transactionData
+          error: `Erro no Banco de Dados: ${txError.message}. Verifique se a coluna 'external_id' existe.`,
+          details: txError
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
