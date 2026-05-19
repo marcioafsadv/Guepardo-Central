@@ -66,7 +66,10 @@ const driverIcon = (status: string, lastUpdate?: string) => {
 };
 
 const deliveryIcon = createCustomIcon(Package, '#06b6d4'); // Cyan for distinction
-const storeIcon = createCustomIcon(Store, '#ef4444', 'pulse-red'); // Red pulse for stores
+const getStoreIcon = (status: string) => {
+    const isOpen = ['open', 'aberta', 'online'].includes(status?.toLowerCase() || '') || !status;
+    return createCustomIcon(Store, isOpen ? '#10b981' : '#ef4444', isOpen ? 'pulse-green' : 'pulse-red');
+};
 const savanaIcon = createCustomIcon(Target, '#ea580c', 'pulse-orange'); // Orange pulse for base
 
 const SAVANA_COORDS: [number, number] = [-23.2741476, -47.2876003];
@@ -331,13 +334,15 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                     </Popup>
                 </Marker>
 
-                {/* Store Markers (Red) */}
-                {stores.map((store) => (
-                    store.lat && store.lng && (
+                {/* Store Markers (Green = Open, Red = Closed) */}
+                {stores.map((store) => {
+                    if (!store.lat || !store.lng) return null;
+                    const isOpen = ['open', 'aberta', 'online'].includes(store.status?.toLowerCase() || '') || !store.status;
+                    return (
                         <Marker
                             key={store.id}
                             position={[store.lat, store.lng]}
-                            icon={storeIcon}
+                            icon={getStoreIcon(store.status)}
                         >
                             <Popup>
                                 <div className="p-1">
@@ -345,15 +350,15 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                                     <p className="text-xs text-gray-500 mt-1">{formatAddress(store.address)}</p>
                                     <p className={cn(
                                         "text-[10px] font-black mt-2 uppercase tracking-wide",
-                                        store.status === 'open' ? "text-green-500" : "text-red-500"
+                                        isOpen ? "text-green-500" : "text-red-500"
                                     )}>
-                                        {store.status === 'open' ? 'Loja Aberta' : 'Loja Fechada'}
+                                        {isOpen ? 'Loja Aberta' : 'Loja Fechada'}
                                     </p>
                                 </div>
                             </Popup>
                         </Marker>
-                    )
-                ))}
+                    );
+                })}
 
                 {/* Render Routes */}
                 {Object.entries(routes).map(([deliveryId, path]) => (
@@ -503,8 +508,11 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                     <span className="text-xs text-white font-medium">Entregas Ativas</span>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
-                    <span className="text-xs text-white font-medium">Lojistas (Vermelho)</span>
+                    <div className="flex items-center gap-1">
+                        <div className="w-3.5 h-3.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"></div>
+                        <div className="w-3.5 h-3.5 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                    </div>
+                    <span className="text-xs text-white font-medium">Lojistas (Verde = Aberto / Vermelho = Fechado)</span>
                 </div>
                 {selectedDeliveryId && (
                     <div className="flex items-center gap-3 pt-1 border-t border-white/10 mt-1">
