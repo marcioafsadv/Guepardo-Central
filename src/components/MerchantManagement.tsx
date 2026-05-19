@@ -21,7 +21,12 @@ import {
     AlertCircle,
     Copy,
     Check,
-    Loader2
+    Loader2,
+    Upload,
+    RotateCw,
+    ZoomIn,
+    ZoomOut,
+    ExternalLink
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Store as StoreType, Delivery } from '../types';
@@ -59,11 +64,112 @@ interface MerchantDetailsModalProps {
     onOnboardingUpdate: (status: 'approved' | 'rejected', notes?: string) => Promise<void>;
     onStatusUpdate: (isActive: boolean) => Promise<void>;
     onPauseUpdate: (status: string | undefined) => Promise<void>;
+    onRefresh: () => void;
 }
 
-const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onStatusUpdate, onPauseUpdate }: MerchantDetailsModalProps) => {
+const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onStatusUpdate, onPauseUpdate, onRefresh }: MerchantDetailsModalProps) => {
     const [notes, setNotes] = useState(store.onboarding_notes || '');
     const [updating, setUpdating] = useState(false);
+    const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+    const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string } | null>(null);
+    const [rotation, setRotation] = useState(0);
+    const [zoom, setZoom] = useState(1);
+    const [position, setPosition] = useState({ x: 0, y: 0 });
+    const [isDragging, setIsDragging] = useState(false);
+    const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+    const [docUrls, setDocUrls] = useState({
+        logo: store.logo_url,
+        document: store.document_url,
+        contract: store.contract_url,
+        location_photo: store.location_photo_url,
+    });
+
+    useEffect(() => {
+        setRotation(0);
+        setZoom(1);
+        setPosition({ x: 0, y: 0 });
+    }, [viewingPhoto]);
+
+    useEffect(() => {
+        if (zoom === 1) setPosition({ x: 0, y: 0 });
+    }, [zoom]);
+
+    useEffect(() => {
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') setViewingPhoto(null);
+        };
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, []);
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        if (zoom > 1) {
+            setIsDragging(true);
+            setDragStart({ x: e.clientX - position.x, y: e.clientY - position.y });
+        }
+    };
+
+    const handleMouseMove = (e: React.MouseEvent) => {
+        if (isDragging && zoom > 1) {
+            setPosition({
+                x: e.clientX - dragStart.x,
+                y: e.clientY - dragStart.y
+            });
+        }
+    };
+
+    const handleMouseUp = () => {
+        setIsDragging(false);
+    };
+
+    const handleUpload = async (docType: string, file: File) => {
+        setUploadingDoc(docType);
+        try {
+            const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+
+            const baseName = docType === 'Logo da Empresa' ? 'logo' :
+                             docType === 'RG do Sócio Responsável' ? 'document' :
+                             docType === 'Contrato Social' ? 'contract' : 'location_photo';
+
+            const fileName = `${baseName}.${ext}`;
+            const filePath = `${store.id}/${fileName}`;
+
+            const { error: uploadError } = await supabase.storage
+                .from('merchant-documents')
+                .upload(filePath, file, {
+                    upsert: true,
+                    contentType: file.type
+                });
+
+            if (uploadError) throw uploadError;
+
+            const { data } = supabase.storage.from('merchant-documents').getPublicUrl(filePath);
+            const newUrl = `${data.publicUrl}?t=${Date.now()}`;
+
+            const dbField = docType === 'Logo da Empresa' ? 'logo_url' :
+                            docType === 'RG do Sócio Responsável' ? 'document_url' :
+                            docType === 'Contrato Social' ? 'contract_url' : 'location_photo_url';
+
+            const { error: updateError } = await supabase
+                .from('stores')
+                .update({ [dbField]: newUrl })
+                .eq('id', store.id);
+
+            if (updateError) throw updateError;
+
+            const stateKey = docType === 'Logo da Empresa' ? 'logo' :
+                             docType === 'RG do Sócio Responsável' ? 'document' :
+                             docType === 'Contrato Social' ? 'contract' : 'location_photo';
+
+            setDocUrls(prev => ({ ...prev, [stateKey]: newUrl }));
+            onRefresh();
+        } catch (err: any) {
+            console.error('Error uploading merchant document:', err);
+            alert(`Erro ao enviar documento: ${err.message || 'Erro desconhecido'}`);
+        } finally {
+            setUploadingDoc(null);
+        }
+    };
 
     const handleOnboarding = async (status: 'approved' | 'rejected') => {
         setUpdating(true);
@@ -72,10 +178,10 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
     };
 
     const docs = [
-        { label: 'Logo da Empresa', url: store.logo_url, icon: ImageIcon },
-        { label: 'RG do Sócio Responsável', url: store.document_url, icon: FileText },
-        { label: 'Contrato Social', url: store.contract_url, icon: ShieldCheck },
-        { label: 'Fachada da Loja', url: store.location_photo_url, icon: ImageIcon },
+        { label: 'Logo da Empresa', url: docUrls.logo, icon: ImageIcon },
+        { label: 'RG do Sócio Responsável', url: docUrls.document, icon: FileText },
+        { label: 'Contrato Social', url: docUrls.contract, icon: ShieldCheck },
+        { label: 'Fachada da Loja', url: docUrls.location_photo, icon: ImageIcon },
     ];
 
     const isOpen = ['open', 'aberta', 'online'].includes(store.status?.toLowerCase() || '') || !store.status;
@@ -261,43 +367,55 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
                             {docs.map((doc, i) => {
-                                const isPDF = doc.url?.toLowerCase().endsWith('.pdf');
+                                const isPDF = doc.url?.toLowerCase().includes('.pdf');
                                 return (
-                                    <div key={i} className="space-y-2 group cursor-pointer transition-all duration-500 hover:scale-105">
-                                        <div className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover:border-guepardo-orange/50">
+                                    <div key={i} className="space-y-3 group/doc relative">
+                                        <div
+                                            className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover/doc:border-guepardo-orange/50 transition-all cursor-pointer"
+                                            onClick={() => doc.url && setViewingPhoto({ url: doc.url, label: doc.label })}
+                                        >
                                             {doc.url ? (
-                                                <>
-                                                    {isPDF ? (
-                                                        <div className="w-full h-full flex flex-col items-center justify-center text-guepardo-orange/40 bg-guepardo-orange/5">
-                                                            <FileText className="w-12 h-12 mb-2" />
-                                                            <span className="text-[8px] font-black uppercase tracking-widest text-[#57534E]">Documento PDF</span>
-                                                        </div>
-                                                    ) : (
-                                                        <img 
-                                                            src={doc.url} 
-                                                            alt={doc.label} 
-                                                            className="w-full h-full object-cover transition-transform group-hover:scale-110" 
-                                                        />
-                                                    )}
-                                                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all backdrop-blur-sm">
-                                                        <a 
-                                                            href={doc.url} 
-                                                            target="_blank" 
-                                                            rel="noopener noreferrer"
-                                                            className="bg-white/10 border border-white/20 px-4 py-2 rounded-xl text-[10px] font-black text-white hover:bg-white/20 transition-colors uppercase tracking-widest"
-                                                        >
-                                                            {isPDF ? 'Abrir PDF' : 'Ver Original'}
-                                                        </a>
+                                                isPDF ? (
+                                                    <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/5 text-red-400 gap-2">
+                                                        <FileText className="w-10 h-10" />
+                                                        <span className="text-[10px] font-black tracking-widest">VISUALIZAR PDF</span>
                                                     </div>
-                                                </>
+                                                ) : (
+                                                    <img
+                                                        src={doc.url}
+                                                        alt={doc.label}
+                                                        className="w-full h-full object-cover transition-transform group-hover/doc:scale-110"
+                                                    />
+                                                )
                                             ) : (
                                                 <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-bold text-[#57534E] gap-2">
                                                     <AlertCircle className="w-5 h-5 opacity-20" />
                                                     NÃO ANEXADO
                                                 </div>
                                             )}
+
+                                            {uploadingDoc === doc.label && (
+                                                <div className="absolute inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-20">
+                                                    <div className="w-6 h-6 border-2 border-guepardo-orange/20 border-t-guepardo-orange rounded-full animate-spin"></div>
+                                                </div>
+                                            )}
                                         </div>
-                                        <p className="text-[10px] font-black text-center text-[#A8A29E] tracking-widest uppercase">{doc.label}</p>
+
+                                        <div className="flex items-center justify-between px-1">
+                                            <p className="text-[10px] font-black text-[#A8A29E] tracking-widest uppercase">{doc.label}</p>
+                                            <label className="cursor-pointer p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-[#A8A29E] hover:text-white transition-all shadow-sm">
+                                                <Upload className="w-3 h-3" />
+                                                <input
+                                                    type="file"
+                                                    className="hidden"
+                                                    accept="image/*,application/pdf"
+                                                    onChange={(e) => {
+                                                        const file = e.target.files?.[0];
+                                                        if (file) handleUpload(doc.label, file);
+                                                    }}
+                                                />
+                                            </label>
+                                        </div>
                                     </div>
                                 );
                             })}
@@ -319,6 +437,125 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                     </section>
                 </div>
             </div>
+
+            {/* Full Screen Photo / PDF Viewer Overlay */}
+            {viewingPhoto && (
+                <div
+                    className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-md animate-in fade-in duration-300 p-4 md:p-10"
+                    onClick={() => setViewingPhoto(null)}
+                >
+                    <div className="absolute top-6 right-6 flex items-center gap-4 z-[70]">
+                        {!viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                            <div className="flex bg-white/10 rounded-full p-1 border border-white/10 shadow-2xl backdrop-blur-md">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setZoom(prev => Math.max(prev - 0.25, 0.5)); }}
+                                    className="p-2 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all active:scale-95"
+                                    title="Diminuir Zoom"
+                                >
+                                    <ZoomOut className="w-5 h-5" />
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setZoom(1); }}
+                                    className="px-2 min-w-[3.5rem] flex items-center justify-center hover:bg-white/5 rounded-lg transition-colors"
+                                    title="Resetar Zoom"
+                                >
+                                    <span className="text-[10px] font-black text-white/50">{Math.round(zoom * 100)}%</span>
+                                </button>
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); setZoom(prev => Math.min(prev + 0.25, 4)); }}
+                                    className="p-2 hover:bg-white/10 rounded-full text-white/70 hover:text-white transition-all active:scale-95"
+                                    title="Aumentar Zoom"
+                                >
+                                    <ZoomIn className="w-5 h-5" />
+                                </button>
+                            </div>
+                        )}
+
+                        {viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                            <a
+                                href={viewingPhoto.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 flex items-center gap-2"
+                                onClick={(e) => e.stopPropagation()}
+                                title="Abrir em Nova Aba"
+                            >
+                                <ExternalLink className="w-6 h-6" />
+                                <span className="text-[10px] font-black uppercase tracking-widest pr-1">Abrir Original</span>
+                            </a>
+                        )}
+
+                        <button
+                            className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:scale-110 flex items-center gap-2 group/rotate"
+                            onClick={(e) => { e.stopPropagation(); setRotation(prev => (prev + 90) % 360); }}
+                            title="Girar Foto"
+                        >
+                            <RotateCw className="w-6 h-6 transition-transform group-hover/rotate:rotate-45" />
+                            <span className="text-[10px] font-black uppercase tracking-widest pr-1">Girar</span>
+                        </button>
+
+                        <button
+                            className="p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-all hover:rotate-90"
+                            onClick={(e) => { e.stopPropagation(); setViewingPhoto(null); }}
+                        >
+                            <X className="w-8 h-8" />
+                        </button>
+                    </div>
+
+                    <div
+                        className="relative max-w-5xl w-full h-full flex flex-col items-center justify-center gap-6 animate-in zoom-in-95 duration-300"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="w-full flex items-center justify-between">
+                            <div className="flex flex-col">
+                                <h3 className="text-2xl font-black text-white uppercase tracking-widest leading-none">{viewingPhoto.label}</h3>
+                                <p className="text-guepardo-orange text-[10px] font-black uppercase tracking-[0.3em] mt-2">Conferência de Documentação</p>
+                            </div>
+                            <div className="hidden md:block px-4 py-2 bg-white/5 border border-white/10 rounded-xl">
+                                <p className="text-[10px] font-bold text-[#A8A29E] uppercase tracking-widest">{store.fantasy_name || store.company_name}</p>
+                            </div>
+                        </div>
+
+                        <div className="relative w-full flex-1 bg-black/40 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl flex items-center justify-center">
+                            <div className="absolute inset-0 bg-brand-gradient opacity-5"></div>
+                            {!viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                                <div
+                                    className="absolute inset-0 overflow-hidden flex items-center justify-center p-12 custom-scrollbar"
+                                    onMouseMove={handleMouseMove}
+                                    onMouseUp={handleMouseUp}
+                                    onMouseLeave={handleMouseUp}
+                                >
+                                    <img
+                                        src={viewingPhoto.url}
+                                        alt={viewingPhoto.label}
+                                        className={`transition-transform ${isDragging ? 'duration-0' : 'duration-300'} ease-out shadow-2xl origin-center select-none`}
+                                        style={{
+                                            transform: `translate(${position.x}px, ${position.y}px) rotate(${rotation}deg) scale(${zoom})`,
+                                            maxWidth: zoom === 1 ? '100%' : 'none',
+                                            maxHeight: zoom === 1 ? '100%' : 'none',
+                                            cursor: zoom > 1 ? (isDragging ? 'grabbing' : 'grab') : 'default'
+                                        }}
+                                        onMouseDown={handleMouseDown}
+                                        onDragStart={(e) => e.preventDefault()}
+                                        draggable={false}
+                                    />
+                                </div>
+                            )}
+                            {viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                                <iframe
+                                    src={viewingPhoto.url}
+                                    className="w-full h-full rounded-[2.5rem] relative z-10"
+                                    title={viewingPhoto.label}
+                                />
+                            )}
+                        </div>
+
+                        <p className="text-[#A8A29E] text-[10px] font-black uppercase tracking-[0.2em] animate-pulse">
+                            Clique fora para fechar • ESC para sair
+                        </p>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -1081,6 +1318,7 @@ const MerchantManagement = () => {
                     onOnboardingUpdate={(status, notes) => handleUpdateOnboarding(selectedStore.id, status, notes)}
                     onStatusUpdate={(isOpen) => toggleIsActive(selectedStore.id, isOpen)}
                     onPauseUpdate={(status) => togglePause(selectedStore.id, status)}
+                    onRefresh={fetchData}
                 />
             )}
             {/* Recharge Modal */}
