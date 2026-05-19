@@ -23,14 +23,25 @@ const DefaultIcon = L.icon({
 });
 L.Marker.prototype.options.icon = DefaultIcon;
 
-// Custom icons using Lucide
-const createCustomIcon = (IconComponent: LucideIcon, color: string, pulseClass?: string) => {
+// Custom icons using Lucide or Custom Images
+const createCustomIcon = (IconComponent: LucideIcon, color: string, pulseClass?: string, imageUrl?: string) => {
     const html = renderToStaticMarkup(
         <div style={{ color }} className={cn(
-            "bg-white p-1.5 rounded-full border-2 border-current shadow-lg flex items-center justify-center transition-all duration-500",
+            "bg-white rounded-full border-2 border-current shadow-lg flex items-center justify-center transition-all duration-500 overflow-hidden w-9 h-9 relative",
             pulseClass
         )}>
-            <IconComponent size={20} strokeWidth={3} />
+            {/* Fallback Icon in the background */}
+            <div className="absolute inset-0 flex items-center justify-center text-current/80">
+                <IconComponent size={18} strokeWidth={3} />
+            </div>
+            {/* Image (logo/avatar) on top */}
+            {imageUrl && (
+                <img 
+                    src={imageUrl} 
+                    className="absolute inset-0 w-full h-full rounded-full object-cover z-10 bg-white" 
+                    {...{ onerror: "this.style.display='none';" } as any}
+                />
+            )}
         </div>
     );
     return L.divIcon({
@@ -41,7 +52,7 @@ const createCustomIcon = (IconComponent: LucideIcon, color: string, pulseClass?:
     });
 };
 
-const driverIcon = (status: string, lastUpdate?: string) => {
+const driverIcon = (status: string, lastUpdate?: string, avatarUrl?: string) => {
     let color = '#3b82f6'; // Blue (Available)
     let pulse = 'pulse-blue';
 
@@ -62,13 +73,13 @@ const driverIcon = (status: string, lastUpdate?: string) => {
         }
     }
 
-    return createCustomIcon(Bike, color, pulse);
+    return createCustomIcon(Bike, color, pulse, avatarUrl);
 };
 
 const deliveryIcon = createCustomIcon(Package, '#06b6d4'); // Cyan for distinction
-const getStoreIcon = (status?: string) => {
+const getStoreIcon = (status?: string, logoUrl?: string) => {
     const isOpen = ['open', 'aberta', 'online'].includes(status?.toLowerCase() || '') || !status;
-    return createCustomIcon(Store, isOpen ? '#10b981' : '#ef4444', isOpen ? 'pulse-green' : 'pulse-red');
+    return createCustomIcon(Store, isOpen ? '#10b981' : '#ef4444', isOpen ? 'pulse-green' : 'pulse-red', logoUrl);
 };
 const savanaIcon = createCustomIcon(Target, '#ea580c', 'pulse-orange'); // Orange pulse for base
 
@@ -342,7 +353,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                         <Marker
                             key={store.id}
                             position={[store.lat, store.lng]}
-                            icon={getStoreIcon(store.status)}
+                            icon={getStoreIcon(store.status, store.logo_url)}
                         >
                             <Popup>
                                 <div className="p-1">
@@ -379,7 +390,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                         <Marker
                             key={driver.id}
                             position={[lat, lng]}
-                            icon={driverIcon(driver.status || 'available', driver.last_location_update)}
+                            icon={driverIcon(driver.status || 'available', driver.last_location_update, driver.avatar_url)}
                         >
                             <Popup>
                                 <div className="p-2 min-w-[180px]">
