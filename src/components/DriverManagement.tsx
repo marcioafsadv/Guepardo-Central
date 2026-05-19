@@ -218,10 +218,10 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-guepardo-brown-dark/90 border border-white/10 w-full max-w-4xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col md:flex-row h-[85vh]">
+            <div className="bg-guepardo-brown-dark/90 border border-white/10 w-full max-w-4xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col md:flex-row h-[90vh] md:h-[85vh] overflow-y-auto md:overflow-hidden">
 
                 {/* Left Panel: Profile Summary */}
-                <div className="md:w-1/3 bg-black/20 border-r border-white/10 p-8 flex flex-col items-center text-center overflow-y-auto">
+                <div className="w-full md:w-1/3 bg-black/20 border-b md:border-b-0 md:border-r border-white/10 p-6 md:p-8 flex flex-col items-center text-center overflow-y-auto shrink-0">
                     <div 
                         className="relative group mb-6 cursor-pointer"
                         onClick={() => driver.avatar_url && setViewingPhoto({ url: driver.avatar_url, label: 'Foto de Perfil' })}
@@ -353,7 +353,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                 </div>
 
                 {/* Right Panel: Detailed Info Docs */}
-                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-10">
+                <div className="flex-1 p-6 md:p-10 overflow-y-auto custom-scrollbar space-y-6 md:space-y-10">
                     <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-4">
                         <ShieldCheck className="text-guepardo-orange w-8 h-8" />
                         Vistoria de Cadastro
@@ -879,13 +879,13 @@ const DriverManagement = () => {
                             key={driver.id}
                             className={cn(
                                 "group bg-white/5 border border-white/10 rounded-[2.5rem] overflow-hidden hover:bg-white/10 hover:border-white/20 transition-all duration-500 relative hover:shadow-2xl",
-                                viewMode === 'list' ? "flex items-center p-6 gap-6" : "flex flex-col p-8"
+                                viewMode === 'list' ? "flex flex-col md:flex-row md:items-center p-6 gap-6 animate-in fade-in" : "flex flex-col p-8"
                             )}
                         >
                             <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
 
                             {/* Header/Photo */}
-                            <div className={cn("flex items-center gap-5", viewMode === 'list' ? "w-72 shrink-0" : "mb-8")}>
+                            <div className={cn("flex items-center gap-5", viewMode === 'list' ? "w-full md:w-72 md:shrink-0" : "mb-8")}>
                                 <div className="relative group/photo">
                                     <div className="absolute -inset-1.5 bg-brand-gradient rounded-full blur opacity-20 group-hover/photo:opacity-40 transition duration-500"></div>
                                     <div className="w-16 h-16 rounded-full bg-guepardo-brown-light border-2 border-white/10 overflow-hidden relative flex items-center justify-center shadow-xl">
@@ -920,7 +920,7 @@ const DriverManagement = () => {
                             </div>
 
                             {/* Status and Stats Bar */}
-                            <div className={cn("flex-1 min-w-0 flex flex-col gap-6", viewMode === 'list' ? "px-6 border-x border-white/5" : "mb-8")}>
+                            <div className={cn("flex-1 min-w-0 flex flex-col gap-6 w-full", viewMode === 'list' ? "px-0 md:px-6 py-6 md:py-0 border-y md:border-y-0 md:border-x border-white/5" : "mb-8")}>
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="flex flex-col">
                                         <span className="text-[10px] font-black text-amber-500/70 uppercase tracking-widest leading-none mb-2 text-[8px]">Placa / CPF</span>
@@ -966,7 +966,7 @@ const DriverManagement = () => {
                             </div>
 
                             {/* Actions */}
-                            <div className={cn("flex items-center gap-3", viewMode === 'list' ? "w-64 justify-end" : "justify-between mt-auto pt-6 border-t border-white/5")}>
+                            <div className={cn("flex items-center gap-3 w-full", viewMode === 'list' ? "md:w-64 justify-end" : "justify-between mt-auto pt-6 border-t border-white/5")}>
                                 <button
                                     onClick={() => handleSelectDriver(driver)}
                                     className="flex-1 flex items-center justify-center gap-3 px-6 py-3.5 bg-guepardo-orange/10 hover:bg-guepardo-orange/20 rounded-[1.25rem] transition-all text-[10px] font-black text-guepardo-orange border border-guepardo-orange/20 group-hover:border-guepardo-orange/40 shadow-glow uppercase tracking-widest"

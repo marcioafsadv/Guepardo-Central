@@ -402,11 +402,11 @@ const FinanceManagement = () => {
     return (
         <div className="space-y-10 animate-in fade-in duration-700 pb-20">
             {/* Tab Switche */}
-            <div className="flex items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 w-fit">
+            <div className="flex items-center gap-4 bg-white/5 p-2 rounded-2xl border border-white/10 w-full overflow-x-auto md:w-fit flex-nowrap whitespace-nowrap scrollbar-none">
                 <button
                     onClick={() => setActiveTab('history')}
                     className={cn(
-                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0",
                         activeTab === 'history'
                             ? "bg-brand-gradient text-white shadow-glow"
                             : "text-[#A8A29E] hover:text-white hover:bg-white/5"
@@ -418,7 +418,7 @@ const FinanceManagement = () => {
                 <button
                     onClick={() => setActiveTab('payouts')}
                     className={cn(
-                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0",
                         activeTab === 'payouts'
                             ? "bg-brand-gradient text-white shadow-glow"
                             : "text-[#A8A29E] hover:text-white hover:bg-white/5"
@@ -435,7 +435,7 @@ const FinanceManagement = () => {
                 <button
                     onClick={() => setActiveTab('recharges')}
                     className={cn(
-                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3",
+                        "px-6 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-all flex items-center gap-3 shrink-0",
                         activeTab === 'recharges'
                             ? "bg-brand-gradient text-white shadow-glow"
                             : "text-[#A8A29E] hover:text-white hover:bg-white/5"

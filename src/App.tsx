@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Download, Activity, LayoutDashboard, Map as MapIcon,
   Settings, LogOut, TrendingUp, Package, Bike, Store, DollarSign, Clock, X,
-  Calendar, ChevronDown, Trophy, Medal, User
+  Calendar, ChevronDown, Trophy, Medal, User, Menu
 } from 'lucide-react';
 import { startOfDay, subDays } from 'date-fns';
 import { cn } from './lib/utils';
@@ -45,6 +45,7 @@ const App = () => {
   const [merchantSearch, setMerchantSearch] = useState('');
   const [driverSearch, setDriverSearch] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
   useEffect(() => {
     // Check current session
@@ -260,9 +261,73 @@ const App = () => {
 
   return (
     <div className="flex h-screen w-full text-[#E5E5E5] font-sans">
-      {/* Sidebar */}
+      {/* Mobile Sidebar Drawer */}
+      {isMobileSidebarOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Backdrop */}
+          <div 
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity duration-300"
+          ></div>
+          
+          {/* Drawer Content */}
+          <aside className="relative flex flex-col w-64 h-full bg-chocolate-panel border-r border-white/10 z-50 animate-in slide-in-from-left duration-300">
+            <div className="p-6 flex items-center justify-between border-b border-white/5">
+              <div className="flex items-center gap-3">
+                <img src="/cheetah-scooter.png" alt="Guepardo" className="h-10 w-auto object-contain" />
+                <div className="flex flex-col">
+                  <span className="text-white font-black italic text-lg leading-none tracking-tight">GUEPARDO</span>
+                  <span className="text-guepardo-orange font-bold text-[9px] leading-none tracking-widest mt-0.5">CENTRAL</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsMobileSidebarOpen(false)}
+                className="p-1 bg-white/5 hover:bg-white/10 rounded-lg text-white"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto custom-scrollbar">
+              {menuItems.map((item) => (
+                <button
+                  key={item.id}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    setIsMobileSidebarOpen(false);
+                  }}
+                  className={cn(
+                    "w-full flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all duration-200 text-left font-bold text-sm",
+                    activeTab === item.id
+                      ? "bg-brand-gradient text-white shadow-glow-intense"
+                      : "text-[#A8A29E] hover:bg-white/5 hover:text-white"
+                  )}
+                >
+                  <item.icon className={cn("w-5 h-5 shrink-0", activeTab === item.id ? "text-white" : "text-[#A8A29E]")} />
+                  <span>{item.label}</span>
+                </button>
+              ))}
+            </nav>
+            
+            <div className="p-6 border-t border-white/10 bg-black/20">
+              <button 
+                onClick={() => {
+                  handleLogout();
+                  setIsMobileSidebarOpen(false);
+                }}
+                className="w-full flex items-center gap-4 px-4 py-3.5 rounded-xl text-red-500 hover:bg-red-500/10 transition-all font-bold text-sm"
+              >
+                <LogOut className="w-5 h-5 shrink-0" />
+                <span>Sair do Painel</span>
+              </button>
+            </div>
+          </aside>
+        </div>
+      )}
+
+      {/* Desktop Sidebar */}
       <aside
-        className="bg-chocolate-panel border-r border-white/5 transition-all duration-500 flex flex-col z-20 shadow-2xl w-24"
+        className="bg-chocolate-panel border-r border-white/5 flex flex-col z-20 shadow-2xl w-24 hidden md:flex shrink-0"
       >
         <div className="p-8 pb-4 flex flex-col items-center gap-4">
           {/* Espaço em branco no topo para manter alinhamento */}
@@ -313,8 +378,14 @@ const App = () => {
       {/* Main Content */}
       <main className="flex-1 flex flex-col overflow-hidden relative">
         {/* Header */}
-        <header className="h-20 border-b border-white/5 flex items-center justify-between px-10 bg-chocolate-panel z-10 shadow-lg top-0 sticky">
+        <header className="h-20 border-b border-white/5 flex items-center justify-between px-6 md:px-10 bg-chocolate-panel z-10 shadow-lg top-0 sticky">
           <div className="flex items-center gap-6">
+            <button
+              onClick={() => setIsMobileSidebarOpen(true)}
+              className="p-2 bg-white/5 hover:bg-white/10 rounded-xl text-white md:hidden transition-colors border border-white/5"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
             <div className="hidden sm:flex flex-col">
               <h1 className="text-lg font-bold tracking-tight">Console de Liderança</h1>
               <div className="flex items-center gap-2">
@@ -352,9 +423,9 @@ const App = () => {
         </header>
 
         {/* Scrollable Content */}
-        <div className={cn("flex-1 overflow-auto custom-scrollbar", activeTab === 'map' ? 'p-0 relative' : (activeTab === 'dashboard' ? 'p-0' : 'p-10'))}>
+        <div className={cn("flex-1 overflow-auto custom-scrollbar", activeTab === 'map' ? 'p-0 relative' : (activeTab === 'dashboard' ? 'p-0' : 'p-4 md:p-10'))}>
           {activeTab === 'dashboard' && (
-            <div className="max-w-7xl mx-auto p-10 space-y-12">
+            <div className="max-w-7xl mx-auto p-4 md:p-10 space-y-6 md:space-y-12">
               <div className="flex flex-col gap-2 relative">
                 <div className="flex items-center gap-4">
                   <h1 className="text-4xl font-display italic font-black tracking-tight text-white drop-shadow-2xl">Dashboard Guepardo Central</h1>

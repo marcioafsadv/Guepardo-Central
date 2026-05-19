@@ -13,7 +13,7 @@ const LiveTrackingSidebar: React.FC<LiveTrackingSidebarProps> = ({ deliveries, o
     const activeDeliveries = deliveries.filter(d => ['accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'picked_up'].includes(d.status));
 
     return (
-        <div className="w-80 h-full bg-chocolate-panel border-l border-white/5 flex flex-col shadow-2xl z-10">
+        <div className="w-full md:w-80 h-[350px] md:h-full bg-chocolate-panel border-t md:border-t-0 md:border-l border-white/5 flex flex-col shadow-2xl z-10">
             <div className="p-6 border-b border-white/5">
                 <h3 className="text-sm font-black text-white tracking-widest uppercase flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>

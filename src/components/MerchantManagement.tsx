@@ -189,10 +189,10 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-            <div className="bg-guepardo-brown-dark/95 border border-white/10 w-full max-w-5xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col md:flex-row h-[85vh]">
+            <div className="bg-guepardo-brown-dark/95 border border-white/10 w-full max-w-5xl rounded-[2.5rem] overflow-hidden shadow-2xl animate-in zoom-in-95 duration-300 flex flex-col md:flex-row h-[90vh] md:h-[85vh] overflow-y-auto md:overflow-hidden">
                 
                 {/* Left Panel: Merchant Summary */}
-                <div className="md:w-1/3 bg-black/30 border-r border-white/10 p-8 flex flex-col items-center text-center overflow-y-auto custom-scrollbar">
+                <div className="w-full md:w-1/3 bg-black/30 border-b md:border-b-0 md:border-r border-white/10 p-6 md:p-8 flex flex-col items-center text-center overflow-y-auto custom-scrollbar shrink-0">
                     <div className="relative group mb-6">
                         <div className="absolute -inset-1 bg-brand-gradient rounded-3xl blur opacity-30 group-hover:opacity-60 transition duration-1000"></div>
                         <div className="w-32 h-32 rounded-3xl bg-guepardo-brown-light border-2 border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
@@ -331,7 +331,7 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                 </div>
 
                 {/* Right Panel: Detailed Vistoria */}
-                <div className="flex-1 p-10 overflow-y-auto custom-scrollbar space-y-10">
+                <div className="flex-1 p-6 md:p-10 overflow-y-auto custom-scrollbar space-y-6 md:space-y-10">
                     <h2 className="text-3xl font-black text-white tracking-tight flex items-center gap-4">
                         <ShieldCheck className="text-guepardo-orange w-8 h-8" />
                         Vistoria Cadastral
@@ -1178,7 +1178,7 @@ const MerchantManagement = () => {
                                 key={store.id} 
                                 className={cn(
                                     "bg-white/5 border border-white/10 rounded-[2.5rem] hover:bg-white/10 transition-all duration-500 relative group overflow-hidden shadow-xl",
-                                    viewMode === 'list' ? "flex flex-row items-center p-6 gap-8" : "flex flex-col p-8 gap-6"
+                                    viewMode === 'list' ? "flex flex-col md:flex-row md:items-center p-6 gap-8 animate-in fade-in" : "flex flex-col p-8 gap-6"
                                 )}
                             >
                                 <div className={cn(
@@ -1188,7 +1188,7 @@ const MerchantManagement = () => {
                                 )}></div>
 
                                 {/* Header / Identity */}
-                                <div className={cn("flex items-start justify-between gap-4", viewMode === 'list' ? "w-1/3 shrink-0" : "w-full")}>
+                                <div className={cn("flex items-start justify-between gap-4 w-full", viewMode === 'list' ? "md:w-1/3 md:shrink-0" : "")}>
                                     <div className="flex items-center gap-4 min-w-0">
                                         <div className="w-12 h-12 rounded-2xl bg-white/5 border border-white/10 overflow-hidden shrink-0 flex items-center justify-center shadow-inner">
                                             {store.logo_url ? (
@@ -1252,7 +1252,7 @@ const MerchantManagement = () => {
                                 </div>
 
                                 {/* Stats Bar */}
-                                <div className={cn("flex-1", viewMode === 'list' ? "px-8 border-x border-white/5" : "")}>
+                                <div className={cn("flex-1 w-full", viewMode === 'list' ? "px-0 md:px-8 py-4 md:py-0 border-y md:border-y-0 md:border-x border-white/5" : "")}>
                                     <div className="grid grid-cols-3 gap-2">
                                         <div className="flex flex-col items-center p-3 bg-white/5 rounded-2xl border border-white/5">
                                             <span className="text-lg font-black text-emerald-400">{s.completed}</span>
@@ -1270,7 +1270,7 @@ const MerchantManagement = () => {
                                 </div>
 
                                 {/* Info & Actions */}
-                                <div className={cn("flex items-center gap-4", viewMode === 'list' ? "w-64 justify-end" : "justify-between mt-auto pt-4 border-t border-white/5")}>
+                                <div className={cn("flex items-center gap-4 w-full", viewMode === 'list' ? "md:w-64 justify-end" : "justify-between mt-auto pt-4 border-t border-white/5")}>
                                     <div className="flex flex-col">
                                         <span className="text-[8px] font-black text-[#57534E] uppercase tracking-widest leading-none mb-1">Status Operacional</span>
                                         <div className="flex items-center gap-2">
