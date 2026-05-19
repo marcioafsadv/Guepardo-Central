@@ -196,8 +196,8 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                     <div className="relative group mb-6">
                         <div className="absolute -inset-1 bg-brand-gradient rounded-3xl blur opacity-30 group-hover:opacity-60 transition duration-1000"></div>
                         <div className="w-32 h-32 rounded-3xl bg-guepardo-brown-light border-2 border-white/10 overflow-hidden relative shadow-2xl flex items-center justify-center">
-                            {store.logo_url ? (
-                                <img src={store.logo_url} alt={store.fantasy_name} className="w-full h-full object-cover" />
+                            {docUrls.logo ? (
+                                <img src={docUrls.logo} alt={store.fantasy_name} className="w-full h-full object-cover" />
                             ) : (
                                 <Store className="w-16 h-16 text-guepardo-orange/50" />
                             )}
