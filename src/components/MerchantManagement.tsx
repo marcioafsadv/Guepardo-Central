@@ -1215,6 +1215,9 @@ const MerchantManagement = () => {
                                                      store.onboarding_status === 'rejected' ? 'REPROVADO' :
                                                      'PENDENTE'}
                                                 </span>
+                                                <span className="text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                                    SALDO: R$ {(store.wallet_balance || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </span>
                                             </div>
                                         </div>
                                     </div>
