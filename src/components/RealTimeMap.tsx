@@ -66,7 +66,7 @@ const driverIcon = (status: string, lastUpdate?: string) => {
 };
 
 const deliveryIcon = createCustomIcon(Package, '#06b6d4'); // Cyan for distinction
-const getStoreIcon = (status: string) => {
+const getStoreIcon = (status?: string) => {
     const isOpen = ['open', 'aberta', 'online'].includes(status?.toLowerCase() || '') || !status;
     return createCustomIcon(Store, isOpen ? '#10b981' : '#ef4444', isOpen ? 'pulse-green' : 'pulse-red');
 };
