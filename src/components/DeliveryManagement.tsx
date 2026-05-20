@@ -274,34 +274,66 @@ const OrderDetailsModal = ({ delivery, onClose, onShowTracking }: OrderDetailsMo
 
                 {/* Content - Scrollable */}
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6">
-                    {/* Driver Card */}
-                    <div className="bg-[#232629] border border-white/5 rounded-3xl p-6 flex items-center gap-4 relative overflow-hidden group">
-                        <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.03] rounded-full"></div>
-                        <div className="relative shrink-0">
-                            <img 
-                                src={delivery.driver_photo || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop"} 
-                                alt={delivery.driver_name} 
-                                className="w-16 h-16 rounded-2xl object-cover border-2 border-white/10"
-                            />
-                            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#232629] rounded-full animate-pulse"></div>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h4 className="text-white font-black text-lg tracking-tight truncate">{delivery.driver_name || 'João Silva Santos'}</h4>
-                            <p className="text-[#A8A29E] text-[10px] font-black uppercase tracking-widest">{delivery.vehicle_plate || 'HEZ-6664'}</p>
-                        </div>
-                    </div>
+                    {delivery.driver_id ? (
+                        <>
+                            {/* Driver Card */}
+                            <div className="bg-[#232629] border border-white/5 rounded-3xl p-6 flex items-center gap-4 relative overflow-hidden group">
+                                <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.03] rounded-full"></div>
+                                <div className="relative shrink-0">
+                                    <img 
+                                        src={delivery.driver_photo || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop"} 
+                                        alt={delivery.driver_name} 
+                                        className="w-16 h-16 rounded-2xl object-cover border-2 border-white/10"
+                                    />
+                                    <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 border-2 border-[#232629] rounded-full animate-pulse"></div>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <h4 className="text-white font-black text-lg tracking-tight truncate">{delivery.driver_name || 'Guepardo'}</h4>
+                                    <p className="text-[#A8A29E] text-[10px] font-black uppercase tracking-widest">{delivery.vehicle_plate || 'HEZ-6664'}</p>
+                                </div>
+                            </div>
 
-                    {/* Contact Buttons */}
-                    <div className="grid grid-cols-2 gap-4">
-                        <button className="flex items-center justify-center gap-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">
-                            <MessageCircle size={18} />
-                            WhatsApp
-                        </button>
-                        <button className="flex items-center justify-center gap-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all">
-                            <Phone size={18} />
-                            Ligar
-                        </button>
-                    </div>
+                            {/* Contact Buttons */}
+                            <div className="grid grid-cols-2 gap-4">
+                                {delivery.driver_phone ? (
+                                    <>
+                                        <a 
+                                            href={`https://wa.me/${delivery.driver_phone.replace(/\D/g, '').startsWith('55') ? delivery.driver_phone.replace(/\D/g, '') : '55' + delivery.driver_phone.replace(/\D/g, '')}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="flex items-center justify-center gap-3 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-500 border border-emerald-500/20 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                                        >
+                                            <MessageCircle size={18} />
+                                            WhatsApp
+                                        </a>
+                                        <a 
+                                            href={`tel:${delivery.driver_phone}`}
+                                            className="flex items-center justify-center gap-3 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all"
+                                        >
+                                            <Phone size={18} />
+                                            Ligar
+                                        </a>
+                                    </>
+                                ) : (
+                                    <>
+                                        <button disabled className="flex items-center justify-center gap-3 bg-[#232629]/50 text-[#A8A29E]/30 border border-white/5 py-4 rounded-2xl font-black text-xs uppercase tracking-widest cursor-not-allowed">
+                                            <MessageCircle size={18} />
+                                            Sem WhatsApp
+                                        </button>
+                                        <button disabled className="flex items-center justify-center gap-3 bg-[#232629]/50 text-[#A8A29E]/30 border border-white/5 py-4 rounded-2xl font-black text-xs uppercase tracking-widest cursor-not-allowed">
+                                            <Phone size={18} />
+                                            Sem Telefone
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <div className="bg-[#232629]/30 border border-dashed border-white/10 rounded-3xl p-6 flex flex-col items-center justify-center text-center gap-2">
+                            <span className="text-[10px] font-black text-guepardo-orange uppercase tracking-widest">Aguardando Entregador</span>
+                            <p className="text-[#A8A29E] text-xs font-bold">Nenhum profissional aceitou este pedido ainda.</p>
+                        </div>
+                    )}
 
                     {/* Order Number Card */}
                     <div className="bg-transparent border-2 border-guepardo-orange/20 rounded-3xl p-8 flex flex-col items-center justify-center gap-1 shadow-[inset_0_0_40px_rgba(255,107,0,0.05)]">
@@ -422,6 +454,7 @@ const DeliveryManagement = () => {
     const [selectedDelivery, setSelectedDelivery] = useState<Delivery | null>(null);
     const [trackingDelivery, setTrackingDelivery] = useState<Delivery | null>(null);
     const [chatDelivery, setChatDelivery] = useState<Delivery | null>(null);
+    const [stores, setStores] = useState<any[]>([]);
 
     const getDelayStatus = (delivery: Delivery) => {
         const createdAt = new Date(delivery.created_at).getTime();
@@ -442,7 +475,10 @@ const DeliveryManagement = () => {
     };
 
     // Get unique stores for the filter
-    const uniqueStores = Array.from(new Set(deliveries.map(d => d.store_name))).filter(Boolean).sort();
+    const uniqueStores = Array.from(new Set([
+        ...deliveries.map(d => d.store_name),
+        ...stores.map(s => s.fantasy_name || s.company_name)
+    ])).filter(Boolean).sort();
 
     const fetchDeliveries = useCallback(async () => {
         try {
@@ -450,22 +486,27 @@ const DeliveryManagement = () => {
             const [
                 { data: deliveriesData, error: delError },
                 { data: profilesData, error: profError },
-                { data: storesData, error: storeError }
+                { data: storesData, error: storeError },
+                { data: vehiclesData, error: vehicleError }
             ] = await Promise.all([
                 supabase.from('deliveries').select('*').order('created_at', { ascending: false }),
                 supabase.from('profiles').select('*'),
-                supabase.from('stores').select('id, fantasy_name, company_name, phone')
+                supabase.from('stores').select('id, fantasy_name, company_name, phone'),
+                supabase.from('vehicles').select('*')
             ]);
 
             if (delError) throw delError;
             if (profError) console.error('Error fetching profiles:', profError);
             if (storeError) console.error('Error fetching stores:', storeError);
+            else setStores(storesData || []);
+            if (vehicleError) console.error('Error fetching vehicles:', vehicleError);
 
             const mappedDeliveries = (deliveriesData || []).map((d) => {
                 const store = (storesData || []).find(s => s.id === d.store_id);
                 // In some cases driver_id might be stored in courier_id or similar field in the deliveries table
                 const driverId = d.driver_id || d.courier_id;
                 const driver = (profilesData || []).find(p => p.id === driverId);
+                const vehicle = (vehiclesData || []).find(v => v.user_id === driverId);
 
                 return {
                     ...d,
@@ -474,7 +515,7 @@ const DeliveryManagement = () => {
                     driver_name: driver?.full_name || d.driver_name || 'Guepardo',
                     driver_photo: driver?.avatar_url || d.driver_photo,
                     driver_phone: driver?.phone || d.driver_phone,
-                    vehicle_plate: driver?.vehicle_plate || (driver?.metadata as any)?.vehicle_plate || d.vehicle_plate || 'HEZ-6664',
+                    vehicle_plate: vehicle?.plate || driver?.vehicle_plate || (driver?.metadata as any)?.vehicle_plate || d.vehicle_plate || 'HEZ-6664',
                     payment_method: d.items?.paymentMethod || 'PIX',
                     order_value: parseFloat(d.items?.deliveryValue || '0') || 0,
                     origin: d.items?.origin || (d.items?.stopNumber ? 'Site' : 'Site/App')
