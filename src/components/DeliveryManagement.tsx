@@ -703,7 +703,7 @@ const DeliveryManagement = () => {
                             <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
 
                             {/* ID, Status & Time */}
-                            <div className={cn("flex items-center gap-4 shrink-0 w-full justify-between md:justify-start", viewMode === 'list' ? "md:w-[180px]" : "flex-col mb-6 items-start gap-3")}>
+                            <div className={cn("flex items-center gap-4 shrink-0 w-full justify-between md:justify-start", viewMode === 'list' ? "md:w-[150px] md:shrink-0" : "flex-col mb-6 items-start gap-3")}>
                                 <div className="flex flex-col">
                                     <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-[0.2em] mb-0.5">Pedido</span>
                                     <span className="text-base font-black tracking-tight text-white group-hover:text-guepardo-orange transition-colors">
@@ -729,8 +729,8 @@ const DeliveryManagement = () => {
                             </div>
 
                             {/* Client & Address Info */}
-                            <div className={cn("flex-1 min-w-0 flex flex-col md:flex-row md:items-center gap-6 w-full", viewMode === 'list' ? "px-0 md:px-6 py-4 md:py-0 border-y md:border-y-0 md:border-x border-white/5" : "flex-col gap-5 mb-6")}>
-                                <div className="flex items-center gap-3 shrink-0">
+                            <div className={cn("flex-1 min-w-0 flex flex-col md:flex-row md:items-center gap-6 w-full", viewMode === 'list' ? "px-0 md:px-6 py-4 md:py-0 border-y md:border-y-0 md:border-x border-white/5 md:w-auto" : "flex-col gap-5 mb-6")}>
+                                <div className="flex items-center gap-3 shrink-0 md:w-[140px] min-w-0">
                                     <div className="p-2 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 group-hover:bg-blue-500/20 transition-all">
                                         <User className="w-4 h-4" />
                                     </div>
@@ -750,13 +750,13 @@ const DeliveryManagement = () => {
                             </div>
 
                             {/* Financials & Partners Section */}
-                            <div className={cn("flex items-center gap-6 shrink-0 w-full justify-between md:justify-start", viewMode === 'list' ? "px-0 md:px-6 py-4 md:py-0 border-b md:border-b-0 md:border-r border-white/5" : "flex-col gap-6 mb-8 pl-1")}>
-                                <div className="flex flex-col">
+                            <div className={cn("flex items-center gap-6 shrink-0 w-full justify-between md:justify-start", viewMode === 'list' ? "px-0 md:px-6 py-4 md:py-0 border-b md:border-b-0 md:border-r border-white/5 md:w-auto md:shrink-0" : "flex-col gap-6 mb-8 pl-1")}>
+                                <div className="flex flex-col shrink-0 md:w-[80px] min-w-0">
                                     <span className="text-[8px] font-black text-emerald-500/70 uppercase tracking-widest mb-0.5">Valor Total</span>
                                     <span className="text-base font-black text-white">R$ {delivery.earnings?.toFixed(2) || '0.00'}</span>
                                 </div>
 
-                                <div className="flex items-center gap-2.5 min-w-0">
+                                <div className="flex items-center gap-2.5 min-w-0 shrink-0 md:w-[120px]">
                                     <div className="p-1.5 bg-amber-500/10 text-amber-500 rounded-lg border border-amber-500/20">
                                         <Store className="w-3.5 h-3.5" />
                                     </div>
@@ -769,7 +769,7 @@ const DeliveryManagement = () => {
                                 </div>
 
                                 {delivery.driver_id && (
-                                    <div className="flex items-center gap-2.5 min-w-0 border-l border-white/5 pl-6">
+                                    <div className="flex items-center gap-2.5 min-w-0 border-l border-white/5 pl-6 shrink-0 md:w-[140px]">
                                         <div className="relative shrink-0">
                                             <img
                                                 src={delivery.driver_photo || "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&h=100&fit=crop"}
@@ -788,7 +788,7 @@ const DeliveryManagement = () => {
                             </div>
 
                             {/* Action Tools */}
-                            <div className={cn("flex items-center gap-2 w-full justify-end", viewMode === 'list' ? "md:w-[160px]" : "flex-row justify-between pt-6 border-t border-white/5")}>
+                            <div className={cn("flex items-center gap-2 w-full justify-end", viewMode === 'list' ? "md:w-[160px] md:shrink-0" : "flex-row justify-between pt-6 border-t border-white/5")}>
                                 <button
                                     onClick={() => setSelectedDelivery(delivery)}
                                     className="flex items-center justify-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-all text-[10px] font-black text-white whitespace-nowrap uppercase tracking-wider"
