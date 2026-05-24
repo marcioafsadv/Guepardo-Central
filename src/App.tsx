@@ -1,5 +1,5 @@
 // Build timestamp: 2026-03-23T10:45:00Z
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   Download, Activity, LayoutDashboard, Map as MapIcon,
   Settings, LogOut, TrendingUp, Package, Bike, Store, DollarSign, Clock, X,
@@ -46,6 +46,19 @@ const App = () => {
   const [driverSearch, setDriverSearch] = useState('');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [storeToast, setStoreToast] = useState<{ id: string; name: string } | null>(null);
+  const storesRef = useRef<any[]>([]);
+
+  useEffect(() => {
+    storesRef.current = allData.stores;
+  }, [allData.stores]);
+
+  useEffect(() => {
+    if (storeToast) {
+      const timer = setTimeout(() => setStoreToast(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [storeToast]);
 
   useEffect(() => {
     // Check current session
@@ -199,7 +212,38 @@ const App = () => {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'deliveries' }, () => {
         fetchStats();
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'stores' }, (payload: any) => {
+        if (payload.eventType === 'UPDATE') {
+          const oldStore = storesRef.current.find((s: any) => s.id === payload.new.id);
+          const oldStatus = oldStore?.status?.toLowerCase() || '';
+          const newStatus = payload.new.status?.toLowerCase() || '';
+
+          const wasOpen = ['open', 'aberta', 'online'].includes(oldStatus);
+          const isOpen = ['open', 'aberta', 'online'].includes(newStatus);
+
+          if (!wasOpen && isOpen) {
+            console.log(`🔊 [App] Store ${payload.new.fantasy_name || payload.new.company_name || 'Lojista'} is now online! Playing rugido...`);
+            const audio = new Audio('/sounds/rugido-guepardo.mp3');
+            audio.play().catch(e => console.warn('Could not play sound:', e));
+            setStoreToast({
+              id: payload.new.id,
+              name: payload.new.fantasy_name || payload.new.company_name || 'Lojista'
+            });
+          }
+        } else if (payload.eventType === 'INSERT') {
+          const newStatus = payload.new.status?.toLowerCase() || '';
+          const isOpen = ['open', 'aberta', 'online'].includes(newStatus);
+
+          if (isOpen) {
+            console.log(`🔊 [App] Store ${payload.new.fantasy_name || payload.new.company_name || 'Lojista'} created online! Playing rugido...`);
+            const audio = new Audio('/sounds/rugido-guepardo.mp3');
+            audio.play().catch(e => console.warn('Could not play sound:', e));
+            setStoreToast({
+              id: payload.new.id,
+              name: payload.new.fantasy_name || payload.new.company_name || 'Lojista'
+            });
+          }
+        }
         fetchStats();
       })
       .subscribe();
@@ -768,6 +812,28 @@ const App = () => {
           />
         )}
       </main >
+
+      {/* Global Store Online Notification Toast */}
+      {storeToast && (
+        <div className="fixed bottom-8 right-8 z-[100] max-w-sm w-full bg-[#1A1C1E]/95 border border-[#FF6B00]/40 rounded-3xl p-6 shadow-[0_10px_50px_rgba(255,107,0,0.2)] backdrop-blur-xl animate-in slide-in-from-bottom-5 duration-300 flex items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-[#FF6B00]/10 border border-[#FF6B00]/20 flex items-center justify-center relative shrink-0">
+              <Store className="text-[#FF6B00] w-6 h-6 animate-pulse" />
+              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-[#1A1C1E]"></div>
+            </div>
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] font-black text-[#FF6B00] uppercase tracking-widest leading-none mb-1">Lojista Ativo!</span>
+              <h4 className="text-white font-black text-sm truncate leading-tight uppercase">{storeToast.name} está online</h4>
+            </div>
+          </div>
+          <button 
+            onClick={() => setStoreToast(null)} 
+            className="p-1.5 hover:bg-white/5 rounded-lg text-[#A8A29E] hover:text-white transition-colors"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       <style>{`
 @keyframes spin - slow {
