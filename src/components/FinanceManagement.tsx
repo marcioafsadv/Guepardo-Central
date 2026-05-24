@@ -111,13 +111,8 @@ const FinanceManagement = () => {
             if (error) throw error;
 
             const mapped = (data || []).map((d: any) => {
-                let distance = d.delivery_distance || 0;
-                let earnings = d.earnings || 0;
-                
-                if (d.id === 'be523ac1-78a4-481c-83b3-b82f48a8deea' || d.items?.displayId === 1600) {
-                    distance = 5.0;
-                    earnings = 12.78;
-                }
+                const distance = d.delivery_distance || 0;
+                const earnings = d.earnings || 0;
 
                 const totalMerchant = 8.00 + (distance * 1.32);
                 const platformFee = totalMerchant - earnings;

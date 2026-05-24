@@ -508,22 +508,9 @@ const DeliveryManagement = () => {
                 const driver = (profilesData || []).find(p => p.id === driverId);
                 const vehicle = (vehiclesData || []).find(v => v.user_id === driverId);
 
-                let distance = d.delivery_distance || 0;
-                let earnings = d.earnings || 0;
-                let items = d.items;
-
-                if (d.id === 'be523ac1-78a4-481c-83b3-b82f48a8deea' || d.items?.displayId === 1600) {
-                    distance = 5.0;
-                    earnings = 12.78;
-                    if (items) {
-                        items = {
-                            ...items,
-                            destinationLat: -23.2505505,
-                            destinationLng: -47.3292415,
-                            storeFreight: 14.60
-                        };
-                    }
-                }
+                const distance = d.delivery_distance || 0;
+                const earnings = d.earnings || 0;
+                const items = d.items;
 
                 return {
                     ...d,
