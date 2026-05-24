@@ -107,8 +107,11 @@ const App = () => {
         const earnings = d.earnings || 0;
         const items = d.items;
 
-        // Financial calculation
-        const totalMerchant = 8.00 + (distance * 1.32);
+        // Financial calculation - Use actual store freight from DB if available, fallback to formula
+        const storeFreight = items?.storeFreight ?? items?.store_freight;
+        const totalMerchant = storeFreight !== undefined && storeFreight !== null
+          ? Number(storeFreight)
+          : 8.00 + (distance * 1.32);
         const platformFee = totalMerchant - earnings;
 
         return {

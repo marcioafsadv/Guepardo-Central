@@ -115,7 +115,10 @@ const FinanceManagement = () => {
                 const distance = d.delivery_distance || 0;
                 const earnings = d.earnings || 0;
 
-                const totalMerchant = 8.00 + (distance * 1.32);
+                const storeFreight = d.items?.storeFreight ?? d.items?.store_freight;
+                const totalMerchant = storeFreight !== undefined && storeFreight !== null
+                    ? Number(storeFreight)
+                    : 8.00 + (distance * 1.32);
                 const platformFee = totalMerchant - earnings;
 
                 return {
