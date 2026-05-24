@@ -335,6 +335,39 @@ const OrderDetailsModal = ({ delivery, onClose, onShowTracking }: OrderDetailsMo
                         </div>
                     )}
 
+                    {/* Customer Card */}
+                    <div className="bg-[#232629] border border-white/5 rounded-3xl p-6 flex flex-col gap-4 relative overflow-hidden group">
+                        <div className="absolute -right-4 -top-4 w-24 h-24 bg-blue-500/5 rounded-full"></div>
+                        <div className="flex items-center gap-4">
+                            <div className="p-3 bg-blue-500/10 text-blue-400 rounded-2xl border border-blue-500/20">
+                                <User className="w-6 h-6" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Cliente Final</span>
+                                <h4 className="text-white font-black text-lg tracking-tight truncate">{delivery.customer_name || 'Cliente Desconhecido'}</h4>
+                            </div>
+                        </div>
+                        
+                        <div className="space-y-3 border-t border-white/5 pt-4 text-xs font-medium">
+                            <div className="flex items-start gap-3 text-[#A8A29E]">
+                                <MapPin size={16} className="text-red-500 shrink-0 mt-0.5" />
+                                <div className="flex flex-col">
+                                    <span className="text-[9px] font-black text-red-500/70 uppercase tracking-wider block">Endereço de Entrega</span>
+                                    <span className="text-white font-bold leading-normal">{delivery.customer_address || 'Não informado'}</span>
+                                </div>
+                            </div>
+                            {delivery.customer_phone_suffix && (
+                                <div className="flex items-center gap-3 text-[#A8A29E]">
+                                    <Phone size={16} className="text-blue-400 shrink-0" />
+                                    <div className="flex flex-col">
+                                        <span className="text-[9px] font-black text-blue-400/70 uppercase tracking-wider block">Telefone (4 últimos dígitos)</span>
+                                        <span className="text-white font-bold text-sm tracking-widest">****-{delivery.customer_phone_suffix}</span>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
                     {/* Order Number Card */}
                     <div className="bg-transparent border-2 border-guepardo-orange/20 rounded-3xl p-8 flex flex-col items-center justify-center gap-1 shadow-[inset_0_0_40px_rgba(255,107,0,0.05)]">
                         <span className="text-[10px] font-black text-guepardo-orange uppercase tracking-[0.4em]">Número do Pedido</span>
@@ -785,6 +818,12 @@ const DeliveryManagement = () => {
                                     <div className="flex flex-col min-w-0">
                                         <span className="text-[8px] font-black text-blue-400/70 uppercase tracking-widest leading-none mb-1">Cliente</span>
                                         <h3 className="font-black text-white text-sm truncate tracking-tight">{delivery.customer_name || 'Desconhecido'}</h3>
+                                        {delivery.customer_phone_suffix && (
+                                            <span className="text-[10px] font-bold text-blue-400 mt-1 flex items-center gap-1">
+                                                <Phone className="w-2.5 h-2.5 shrink-0" />
+                                                ****-{delivery.customer_phone_suffix}
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 

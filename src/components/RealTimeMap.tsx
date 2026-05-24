@@ -443,7 +443,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                             <Popup>
                                 <div className="p-1">
                                     <p className="font-bold text-[#1c1917]">Pedido #{delivery.id.slice(0, 8)}</p>
-                                    <p className="text-xs text-gray-500">Para: {delivery.customer_name}</p>
+                                    <p className="text-xs text-gray-500">Para: {delivery.customer_name}{delivery.customer_phone_suffix ? ` (****-${delivery.customer_phone_suffix})` : ''}</p>
                                     <p className="text-xs font-semibold text-blue-600 capitalize">{delivery.status}</p>
                                 </div>
                             </Popup>

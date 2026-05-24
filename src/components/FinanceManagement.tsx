@@ -16,6 +16,7 @@ import {
     BarChart3,
     PieChart as PieChartIcon,
     X,
+    Phone,
     FileSpreadsheet,
     FileText,
     Printer,
@@ -849,6 +850,12 @@ const FinanceManagement = () => {
                                                 <div className="flex flex-col">
                                                     <span className="text-[10px] font-black text-white uppercase">{selectedDelivery.customer_name || 'Consumidor'}</span>
                                                     <span className="text-[8px] text-[#A8A29E] font-bold leading-tight mt-0.5">{selectedDelivery.customer_address}</span>
+                                                    {selectedDelivery.customer_phone_suffix && (
+                                                        <span className="text-[9px] text-blue-400 font-bold mt-1 flex items-center gap-1">
+                                                            <Phone size={10} />
+                                                            ****-{selectedDelivery.customer_phone_suffix}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
