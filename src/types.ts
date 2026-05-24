@@ -130,6 +130,8 @@ export interface Delivery {
     order_value?: number;
     origin?: string;
     external_id?: string;
+    batch_id?: string;
+    stop_number?: number;
 }
 
 export interface DriverWithDetails extends Profile {

@@ -111,14 +111,47 @@ const FinanceManagement = () => {
 
             if (error) throw error;
 
+            // Map to store total batch freight and count of deliveries per batch to distribute it evenly
+            const batchMap = new Map<string, { totalFreight: number; count: number }>();
+            (data || []).forEach((d: any) => {
+                if (d.batch_id) {
+                    const storeFreight = d.items?.storeFreight ?? d.items?.store_freight;
+                    const val = storeFreight !== undefined && storeFreight !== null
+                        ? Number(storeFreight)
+                        : 8.00 + (d.delivery_distance || 0) * 1.32;
+                    
+                    const existing = batchMap.get(d.batch_id);
+                    if (existing) {
+                        existing.totalFreight += val;
+                        existing.count += 1;
+                    } else {
+                        batchMap.set(d.batch_id, { totalFreight: val, count: 1 });
+                    }
+                }
+            });
+
             const mapped = (data || []).map((d: any) => {
                 const distance = d.delivery_distance || 0;
                 const earnings = d.earnings || 0;
 
-                const storeFreight = d.items?.storeFreight ?? d.items?.store_freight;
-                const totalMerchant = storeFreight !== undefined && storeFreight !== null
-                    ? Number(storeFreight)
-                    : 8.00 + (distance * 1.32);
+                let totalMerchant = 0;
+                if (d.batch_id) {
+                    const batchInfo = batchMap.get(d.batch_id);
+                    if (batchInfo && batchInfo.count > 0) {
+                        totalMerchant = batchInfo.totalFreight / batchInfo.count;
+                    } else {
+                        const storeFreight = d.items?.storeFreight ?? d.items?.store_freight;
+                        totalMerchant = storeFreight !== undefined && storeFreight !== null
+                            ? Number(storeFreight)
+                            : 8.00 + (distance * 1.32);
+                    }
+                } else {
+                    const storeFreight = d.items?.storeFreight ?? d.items?.store_freight;
+                    totalMerchant = storeFreight !== undefined && storeFreight !== null
+                        ? Number(storeFreight)
+                        : 8.00 + (distance * 1.32);
+                }
+
                 const platformFee = totalMerchant - earnings;
 
                 return {
