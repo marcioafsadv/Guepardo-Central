@@ -37,6 +37,7 @@ interface DriverWithDetails extends Profile {
         active: number;
         rejected: number;
     };
+    balance?: number;
 }
 
 interface DriverDetailsModalProps {
@@ -272,6 +273,15 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                             <div>
                                 <p className="text-[10px] font-black text-slate-400/70 uppercase tracking-widest leading-none mb-1">Documento (CPF)</p>
                                 <p className="text-white text-sm font-bold">{driver.cpf || 'N/A'}</p>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-emerald-500/5 rounded-2xl border border-emerald-500/10 flex items-center gap-4">
+                            <div className="p-2 bg-emerald-500/10 text-emerald-400 rounded-xl border border-emerald-500/20 shrink-0">
+                                <CreditCard className="w-4 h-4" />
+                            </div>
+                            <div>
+                                <p className="text-[10px] font-black text-emerald-400/70 uppercase tracking-widest leading-none mb-1">Saldo da Carteira</p>
+                                <p className="text-white text-sm font-bold">R$ {(driver.balance || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                             </div>
                         </div>
                         {driver.created_at && (
@@ -659,9 +669,17 @@ const DriverManagement = () => {
             })
             .subscribe();
 
+        const transactionsSub = supabase
+            .channel('transactions-updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+                fetchDrivers();
+            })
+            .subscribe();
+
         return () => {
             supabase.removeChannel(profilesSub);
             supabase.removeChannel(deliveriesSub);
+            supabase.removeChannel(transactionsSub);
         };
     }, []);
 
@@ -672,13 +690,15 @@ const DriverManagement = () => {
                 { data: vehicles, error: vehError },
                 { data: addresses, error: addrError },
                 { data: bankAccounts, error: bankError },
-                { data: deliveriesRaw, error: delError }
+                { data: deliveriesRaw, error: delError },
+                { data: transactionsRaw, error: txError }
             ] = await Promise.all([
                 supabase.from('profiles').select('*').order('created_at', { ascending: false }),
                 supabase.from('vehicles').select('*'),
                 supabase.from('addresses').select('*'),
                 supabase.from('bank_accounts').select('*'),
-                supabase.from('deliveries').select('driver_id, status, accepted_at').not('driver_id', 'is', null)
+                supabase.from('deliveries').select('driver_id, status, accepted_at').not('driver_id', 'is', null),
+                supabase.from('transactions').select('user_id, amount')
             ]);
 
             if (profError) throw profError;
@@ -686,6 +706,7 @@ const DriverManagement = () => {
             if (addrError) console.error('Error fetching addresses:', addrError);
             if (bankError) console.error('Error fetching bank accounts:', bankError);
             if (delError) console.error('Error fetching delivery stats:', delError);
+            if (txError) console.error('Error fetching transactions:', txError);
 
             // Aggregate stats
             const statsMap: Record<string, any> = {};
@@ -700,6 +721,14 @@ const DriverManagement = () => {
                 if (status === 'cancelled') statsMap[d.driver_id].cancelled++;
                 if (status === 'rejected') statsMap[d.driver_id].rejected++;
                 if (['picked_up', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery'].includes(status)) statsMap[d.driver_id].active++;
+            });
+
+            // Aggregate driver balances from transactions
+            const balanceMap: Record<string, number> = {};
+            (transactionsRaw || []).forEach(tx => {
+                if (!tx.user_id) return;
+                const amt = parseFloat(tx.amount?.toString() || '0');
+                balanceMap[tx.user_id] = (balanceMap[tx.user_id] || 0) + amt;
             });
 
             const mappedDrivers = (profiles || []).map((d: any) => {
@@ -720,7 +749,8 @@ const DriverManagement = () => {
                     vehicles: vehicle,
                     addresses: driverAddresses[0] || null,
                     bank_accounts: driverBank || null,
-                    stats: statsMap[d.id] || { completed: 0, accepted: 0, cancelled: 0, active: 0, rejected: 0 }
+                    stats: statsMap[d.id] || { completed: 0, accepted: 0, cancelled: 0, active: 0, rejected: 0 },
+                    balance: balanceMap[d.id] || 0
                 };
             });
 
@@ -915,6 +945,9 @@ const DriverManagement = () => {
                                                 MEMBRO
                                             </div>
                                         )}
+                                        <span className="text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-widest border bg-emerald-500/10 text-emerald-400 border-emerald-500/20 shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+                                            SALDO: R$ {(driver.balance || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
                                     </div>
                                 </div>
                             </div>
