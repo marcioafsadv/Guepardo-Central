@@ -465,7 +465,9 @@ const App = () => {
           <div className="flex items-center gap-6">
             <div className="text-right hidden sm:block">
               <p className="text-sm font-bold text-white">Administrador Master</p>
-              <p className="text-[10px] text-guepardo-orange font-bold uppercase tracking-tighter">Acesso Total Guepardo</p>
+              <p className="text-[10px] text-guepardo-orange font-bold lowercase tracking-normal">
+                {session?.user?.email || 'Acesso Total Guepardo'}
+              </p>
             </div>
             <div className="relative group">
               <div className="absolute -inset-0.5 bg-brand-gradient rounded-xl blur opacity-30 group-hover:opacity-100 transition duration-1000"></div>
