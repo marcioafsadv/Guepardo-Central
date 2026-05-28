@@ -9,7 +9,13 @@ ON public.transactions
 FOR SELECT
 TO authenticated
 USING (
-  (auth.jwt() ->> 'email') = 'marcioafsadv@gmail.com' OR
+  (auth.jwt() ->> 'email') IN (
+    'marcioafs.adv@gmail.com',
+    'marcioafsadv@gmail.com',
+    'marcio.chair100@gmail.com',
+    'marcio@torresesilvaadvocacia.com.br',
+    'marcioafs@adv.oabsp.org.br'
+  ) OR
   EXISTS (
     SELECT 1 FROM public.profiles
     WHERE id = auth.uid() AND role = 'admin'
