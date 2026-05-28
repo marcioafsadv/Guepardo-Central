@@ -56,7 +56,8 @@ BEGIN
       'marcioafsadv@gmail.com',
       'marcio.chair100@gmail.com',
       'marcio@torresesilvaadvocacia.com.br',
-      'marcioafs@adv.oabsp.org.br'
+      'marcioafs@adv.oabsp.org.br',
+      'guepardodelivery2026@gmail.com'
     ) OR
     EXISTS (
       SELECT 1 FROM public.profiles
