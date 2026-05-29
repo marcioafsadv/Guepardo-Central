@@ -444,7 +444,16 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                                 <div className="p-1">
                                     <p className="font-bold text-[#1c1917]">Pedido #{delivery.id.slice(0, 8)}</p>
                                     <p className="text-xs text-gray-500">Para: {delivery.customer_name}{delivery.customer_phone_suffix ? ` (****-${delivery.customer_phone_suffix})` : ''}</p>
-                                    <p className="text-xs font-semibold text-blue-600 capitalize">{delivery.status}</p>
+                                    <p className="text-xs font-semibold text-blue-600 capitalize">
+                                        {delivery.status === 'pending' && (delivery.items?.scheduledAt || (delivery as any).scheduled_at)
+                                            ? `Programado: ${delivery.items?.scheduledAt || (delivery as any).scheduled_at}`
+                                            : (delivery.status === 'pending' ? 'Pendente' : 
+                                               delivery.status === 'accepted' ? 'Aceito' : 
+                                               delivery.status === 'in_transit' ? 'Em Rota' : 
+                                               delivery.status === 'completed' || delivery.status === 'delivered' ? 'Concluído' : 
+                                               delivery.status === 'canceled' || delivery.status === 'cancelled' ? 'Cancelado' : 
+                                               delivery.status)}
+                                    </p>
                                 </div>
                             </Popup>
                         </Marker>

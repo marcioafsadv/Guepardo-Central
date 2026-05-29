@@ -270,6 +270,12 @@ const OrderDetailsModal = ({ delivery, onClose, onShowTracking }: OrderDetailsMo
                                        delivery.created_at ? format(new Date(new Date(delivery.created_at).getTime() + 15 * 60000), 'HH:mm') : '10:43'}
                         </div>
                     ) : null}
+                    {delivery.status === 'pending' && (delivery.items?.scheduledAt || (delivery as any).scheduled_at) ? (
+                        <div className="flex items-center gap-2 text-purple-400 font-black text-xs uppercase tracking-widest mt-2 bg-purple-500/10 px-4 py-1.5 rounded-full border border-purple-500/20">
+                            <Clock size={12} />
+                            AGENDADO PARA {delivery.items?.scheduledAt || (delivery as any).scheduled_at}
+                        </div>
+                    ) : null}
                 </div>
 
                 {/* Content - Scrollable */}
@@ -490,9 +496,38 @@ const DeliveryManagement = () => {
     const [stores, setStores] = useState<any[]>([]);
 
     const getDelayStatus = (delivery: Delivery) => {
-        const createdAt = new Date(delivery.created_at).getTime();
         const now = new Date().getTime();
-        const diffMinutes = (now - createdAt) / 60000;
+        const scheduledAt = delivery.items?.scheduledAt || (delivery as any).scheduled_at;
+        
+        let baselineTime = new Date(delivery.created_at).getTime();
+        let isScheduledFuture = false;
+
+        if (delivery.status === 'pending' && scheduledAt) {
+            const parts = scheduledAt.split(':');
+            if (parts.length >= 2) {
+                const hh = parseInt(parts[0], 10);
+                const mm = parseInt(parts[1], 10);
+                if (!isNaN(hh) && !isNaN(mm)) {
+                    const scheduledDate = new Date(delivery.created_at);
+                    scheduledDate.setHours(hh, mm, 0, 0);
+                    if (scheduledDate.getTime() < new Date(delivery.created_at).getTime()) {
+                        scheduledDate.setDate(scheduledDate.getDate() + 1);
+                    }
+                    
+                    if (scheduledDate.getTime() > now) {
+                        isScheduledFuture = true;
+                    } else {
+                        baselineTime = scheduledDate.getTime();
+                    }
+                }
+            }
+        }
+
+        if (isScheduledFuture) {
+            return null;
+        }
+
+        const diffMinutes = (now - baselineTime) / 60000;
 
         // Preparation delay: Pending/Accepted for more than 15 mins
         if (['pending', 'accepted'].includes(delivery.status) && diffMinutes > 15) {
@@ -598,6 +633,28 @@ const DeliveryManagement = () => {
         }
     };
 
+    const getDeliveryStatusDetails = (delivery: Delivery) => {
+        const scheduledAt = delivery.items?.scheduledAt || (delivery as any).scheduled_at;
+        if (delivery.status === 'pending' && scheduledAt) {
+            return {
+                label: `PROGRAMADO (${scheduledAt})`,
+                colorClass: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
+            };
+        }
+        
+        let label = delivery.status.toUpperCase();
+        if (delivery.status === 'pending') label = 'PENDENTE';
+        if (delivery.status === 'accepted') label = 'ACEITO';
+        if (delivery.status === 'in_transit') label = 'EM ROTA';
+        if (delivery.status === 'completed' || delivery.status === 'delivered') label = 'CONCLUÍDO';
+        if (delivery.status === 'canceled' || delivery.status === 'cancelled') label = 'CANCELADO';
+        
+        return {
+            label,
+            colorClass: getStatusColor(delivery.status)
+        };
+    };
+
     const filteredDeliveries = deliveries.filter(d => {
         const shortId = d.id.slice(-6).toUpperCase();
         const displayId = d.items?.displayId?.toString() || '';
@@ -611,6 +668,8 @@ const DeliveryManagement = () => {
         const matchesStatus = statusFilter === 'all' ||
             (statusFilter === 'delivered' ? (d.status === 'delivered' || d.status === 'completed') :
                 statusFilter === 'canceled' ? (d.status === 'canceled' || d.status === 'cancelled') :
+                statusFilter === 'scheduled' ? (d.status === 'pending' && (d.items?.scheduledAt || (d as any).scheduled_at)) :
+                statusFilter === 'pending' ? (d.status === 'pending' && !(d.items?.scheduledAt || (d as any).scheduled_at)) :
                     d.status === statusFilter);
 
         const matchesStore = storeFilter === 'all' || d.store_name === storeFilter;
@@ -728,6 +787,7 @@ const DeliveryManagement = () => {
                     >
                         <option value="all">Todos os Status</option>
                         <option value="pending">Pendentes</option>
+                        <option value="scheduled">Programados</option>
                         <option value="accepted">Aceitos</option>
                         <option value="in_transit">Em Rota</option>
                         <option value="delivered">Concluídos</option>
@@ -793,9 +853,14 @@ const DeliveryManagement = () => {
                                 </div>
 
                                 <div className="flex flex-col gap-2">
-                                    <div className={cn("px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-tighter", getStatusColor(delivery.status))}>
-                                        {delivery.status}
-                                    </div>
+                                    {(() => {
+                                        const { label, colorClass } = getDeliveryStatusDetails(delivery);
+                                        return (
+                                            <div className={cn("px-2 py-0.5 rounded-full text-[9px] font-black border uppercase tracking-tighter", colorClass)}>
+                                                {label}
+                                            </div>
+                                        );
+                                    })()}
                                     {getDelayStatus(delivery) && (
                                         <div className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-red-500/20 border border-red-500/30 text-[8px] font-black text-red-500 animate-pulse">
                                             <AlertTriangle size={8} />

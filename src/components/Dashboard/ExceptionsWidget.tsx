@@ -18,9 +18,36 @@ const ExceptionsWidget: React.FC<ExceptionsWidgetProps> = ({ drivers, deliveries
 
     // Logic for "Stuck Orders": Differentiated by status
     const stuckDeliveries = deliveries.filter(d => {
-        const createdAt = new Date(d.created_at).getTime();
         const now = new Date().getTime();
-        const diff = (now - createdAt) / 60000;
+        const scheduledAt = d.items?.scheduledAt || (d as any).scheduled_at;
+        
+        let baselineTime = new Date(d.created_at).getTime();
+        let isScheduledFuture = false;
+
+        if (d.status === 'pending' && scheduledAt) {
+            const parts = scheduledAt.split(':');
+            if (parts.length >= 2) {
+                const hh = parseInt(parts[0], 10);
+                const mm = parseInt(parts[1], 10);
+                if (!isNaN(hh) && !isNaN(mm)) {
+                    const scheduledDate = new Date(d.created_at);
+                    scheduledDate.setHours(hh, mm, 0, 0);
+                    if (scheduledDate.getTime() < new Date(d.created_at).getTime()) {
+                        scheduledDate.setDate(scheduledDate.getDate() + 1);
+                    }
+                    
+                    if (scheduledDate.getTime() > now) {
+                        isScheduledFuture = true;
+                    } else {
+                        baselineTime = scheduledDate.getTime();
+                    }
+                }
+            }
+        }
+
+        if (isScheduledFuture) return false;
+
+        const diff = (now - baselineTime) / 60000;
 
         if (['pending', 'accepted'].includes(d.status)) return diff > 15; // 15 mins for prep
         if (['in_transit', 'picked_up'].includes(d.status)) return diff > 40; // 40 mins for delivery
@@ -65,7 +92,28 @@ const ExceptionsWidget: React.FC<ExceptionsWidgetProps> = ({ drivers, deliveries
 
                 {stuckDeliveries.map(delivery => {
                     const status = ['pending', 'accepted'].includes(delivery.status) ? 'PREPARO' : 'ENTREGA';
-                    const diff = Math.floor((new Date().getTime() - new Date(delivery.created_at).getTime()) / 60000);
+                    
+                    const now = new Date().getTime();
+                    const scheduledAt = delivery.items?.scheduledAt || (delivery as any).scheduled_at;
+                    let baselineTime = new Date(delivery.created_at).getTime();
+                    if (delivery.status === 'pending' && scheduledAt) {
+                        const parts = scheduledAt.split(':');
+                        if (parts.length >= 2) {
+                            const hh = parseInt(parts[0], 10);
+                            const mm = parseInt(parts[1], 10);
+                            if (!isNaN(hh) && !isNaN(mm)) {
+                                const scheduledDate = new Date(delivery.created_at);
+                                scheduledDate.setHours(hh, mm, 0, 0);
+                                if (scheduledDate.getTime() < new Date(delivery.created_at).getTime()) {
+                                    scheduledDate.setDate(scheduledDate.getDate() + 1);
+                                }
+                                if (scheduledDate.getTime() <= now) {
+                                    baselineTime = scheduledDate.getTime();
+                                }
+                            }
+                        }
+                    }
+                    const diff = Math.floor((now - baselineTime) / 60000);
                     
                     return (
                         <div key={delivery.id} className="bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center justify-between group hover:bg-red-500/20 transition-all">
