@@ -16,7 +16,7 @@ BEGIN
     NEW.wallet_balance := COALESCE(NEW.wallet_balance, 0.00) + 20.00;
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger BEFORE INSERT para garantir que o saldo seja definido antes do insert ser finalizado
 DROP TRIGGER IF EXISTS on_store_created_welcome_balance ON public.stores;
@@ -47,7 +47,7 @@ BEGIN
     );
     RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- Trigger AFTER INSERT para gravar o log após a loja ser inserida (garantindo FK de store_id válida)
 DROP TRIGGER IF EXISTS on_store_created_log_welcome_transaction ON public.stores;

@@ -28,7 +28,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 -- 4. Criar o Trigger na tabela profiles
 DROP TRIGGER IF EXISTS on_profile_name_change ON public.profiles;
@@ -46,7 +46,7 @@ BEGIN
   WHERE id = NEW.user_id;
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 DROP TRIGGER IF EXISTS on_vehicle_insert ON public.vehicles;
 CREATE TRIGGER on_vehicle_insert
