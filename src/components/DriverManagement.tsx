@@ -669,9 +669,9 @@ const DriverManagement = () => {
             })
             .subscribe();
 
-        const transactionsSub = supabase
-            .channel('transactions-updates')
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'transactions' }, () => {
+        const withdrawalsSub = supabase
+            .channel('withdrawal-requests-updates')
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'withdrawal_requests' }, () => {
                 fetchDrivers();
             })
             .subscribe();
@@ -679,7 +679,7 @@ const DriverManagement = () => {
         return () => {
             supabase.removeChannel(profilesSub);
             supabase.removeChannel(deliveriesSub);
-            supabase.removeChannel(transactionsSub);
+            supabase.removeChannel(withdrawalsSub);
         };
     }, []);
 
@@ -691,14 +691,14 @@ const DriverManagement = () => {
                 { data: addresses, error: addrError },
                 { data: bankAccounts, error: bankError },
                 { data: deliveriesRaw, error: delError },
-                { data: transactionsRaw, error: txError }
+                { data: withdrawalsRaw, error: withdrawalsError }
             ] = await Promise.all([
                 supabase.from('profiles').select('*').order('created_at', { ascending: false }),
                 supabase.from('vehicles').select('*'),
                 supabase.from('addresses').select('*'),
                 supabase.from('bank_accounts').select('*'),
-                supabase.from('deliveries').select('driver_id, status, accepted_at').not('driver_id', 'is', null),
-                supabase.from('transactions').select('user_id, amount')
+                supabase.from('deliveries').select('driver_id, status, accepted_at, earnings').not('driver_id', 'is', null),
+                supabase.from('withdrawal_requests').select('user_id, amount, status')
             ]);
 
             if (profError) throw profError;
@@ -706,7 +706,7 @@ const DriverManagement = () => {
             if (addrError) console.error('Error fetching addresses:', addrError);
             if (bankError) console.error('Error fetching bank accounts:', bankError);
             if (delError) console.error('Error fetching delivery stats:', delError);
-            if (txError) console.error('Error fetching transactions:', txError);
+            if (withdrawalsError) console.error('Error fetching withdrawal requests:', withdrawalsError);
 
             // Aggregate stats
             const statsMap: Record<string, any> = {};
@@ -723,12 +723,24 @@ const DriverManagement = () => {
                 if (['picked_up', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery'].includes(status)) statsMap[d.driver_id].active++;
             });
 
-            // Aggregate driver balances from transactions
+            // Aggregate driver balances: Completed/delivered delivery earnings minus withdrawals (non-failed)
             const balanceMap: Record<string, number> = {};
-            (transactionsRaw || []).forEach(tx => {
-                if (!tx.user_id) return;
-                const amt = parseFloat(tx.amount?.toString() || '0');
-                balanceMap[tx.user_id] = (balanceMap[tx.user_id] || 0) + amt;
+            (deliveriesRaw || []).forEach(d => {
+                if (!d.driver_id) return;
+                const status = d.status?.toLowerCase();
+                if (status === 'delivered' || status === 'completed') {
+                    const earnings = parseFloat(d.earnings?.toString() || '0');
+                    balanceMap[d.driver_id] = (balanceMap[d.driver_id] || 0) + earnings;
+                }
+            });
+
+            (withdrawalsRaw || []).forEach(w => {
+                if (!w.user_id) return;
+                const status = w.status?.toLowerCase();
+                if (status !== 'failed') {
+                    const amt = parseFloat(w.amount?.toString() || '0');
+                    balanceMap[w.user_id] = (balanceMap[w.user_id] || 0) - amt;
+                }
             });
 
             const mappedDrivers = (profiles || []).map((d: any) => {
