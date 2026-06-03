@@ -56,10 +56,10 @@ const driverIcon = (status: string, lastUpdate?: string, avatarUrl?: string) => 
     let color = '#3b82f6'; // Blue (Available)
     let pulse = 'pulse-blue';
 
-    if (status === 'in_transit' || status === 'active') {
+    if (status === 'in_transit' || status === 'active' || status === 'picked_up') {
         color = '#10b981'; // Green (In Delivery)
         pulse = 'pulse-green';
-    } else if (status === 'arrived_at_pickup' || status === 'pending') {
+    } else if (status === 'arrived_at_pickup' || status === 'ready_for_pickup' || status === 'pending') {
         color = '#f59e0b'; // Yellow (Waiting)
         pulse = 'pulse-amber';
     }
@@ -207,7 +207,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
             const { data: deliveriesData } = await supabase
                 .from('deliveries')
                 .select('*')
-                .in('status', ['pending', 'accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'picked_up']);
+                .in('status', ['pending', 'accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'picked_up', 'ready_for_pickup']);
 
             const { data: storesData } = await supabase
                 .from('stores')
@@ -449,7 +449,11 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                                             ? `Programado: ${delivery.items?.scheduledAt || (delivery as any).scheduled_at}`
                                             : (delivery.status === 'pending' ? 'Pendente' : 
                                                delivery.status === 'accepted' ? 'Aceito' : 
+                                               delivery.status === 'arrived_at_pickup' ? 'Na Loja' :
+                                               delivery.status === 'ready_for_pickup' ? 'Pedido Pronto' :
+                                               delivery.status === 'picked_up' ? 'Coletado' :
                                                delivery.status === 'in_transit' ? 'Em Rota' : 
+                                               delivery.status === 'arrived_at_delivery' ? 'No Destino' :
                                                delivery.status === 'completed' || delivery.status === 'delivered' ? 'Concluído' : 
                                                delivery.status === 'canceled' || delivery.status === 'cancelled' ? 'Cancelado' : 
                                                delivery.status)}
