@@ -10,7 +10,14 @@ interface LiveTrackingSidebarProps {
 }
 
 const LiveTrackingSidebar: React.FC<LiveTrackingSidebarProps> = ({ deliveries, onSelectDelivery, onChat, selectedId }) => {
-    const activeDeliveries = deliveries.filter(d => ['accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'picked_up'].includes(d.status));
+    const activeDeliveries = deliveries.filter(d => {
+        const isPending = d.status === 'pending';
+        if (isPending) {
+            const isScheduled = d.items?.scheduledAt || (d as any).scheduled_at;
+            return !isScheduled;
+        }
+        return ['accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'picked_up'].includes(d.status);
+    });
 
     return (
         <div className="w-full md:w-80 h-[350px] md:h-full bg-chocolate-panel border-t md:border-t-0 md:border-l border-white/5 flex flex-col shadow-2xl z-10">
@@ -51,7 +58,8 @@ const LiveTrackingSidebar: React.FC<LiveTrackingSidebarProps> = ({ deliveries, o
                                         delivery.status === 'arrived_at_delivery' || delivery.status === 'completed' ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' :
                                             'bg-amber-500/10 text-amber-500 border-amber-500/20'
                                 )}>
-                                    {delivery.status === 'accepted' ? 'Aceito' : 
+                                    {delivery.status === 'pending' ? 'Pendente' :
+                                     delivery.status === 'accepted' ? 'Aceito' : 
                                      delivery.status === 'in_transit' ? 'Em Rota' :
                                      delivery.status === 'picked_up' ? 'Coletado' :
                                      delivery.status === 'arrived_at_pickup' ? 'Na Loja' :
@@ -70,7 +78,7 @@ const LiveTrackingSidebar: React.FC<LiveTrackingSidebarProps> = ({ deliveries, o
                                         )}
                                     </div>
                                     <div className="min-w-0">
-                                        <p className="text-xs font-black text-white truncate">{delivery.driver_name || 'Alocando...'}</p>
+                                        <p className="text-xs font-black text-white truncate">{delivery.status === 'pending' ? 'Alocando...' : (delivery.driver_name || 'Alocando...')}</p>
                                         <p className="text-[10px] text-[#A8A29E] font-bold truncate">De: {delivery.store_name}</p>
                                     </div>
                                 </div>
