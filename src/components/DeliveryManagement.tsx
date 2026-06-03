@@ -622,6 +622,7 @@ const DeliveryManagement = () => {
 
     const getStatusColor = (status: string) => {
         switch (status.toLowerCase()) {
+            case 'created': return 'bg-violet-500/20 text-violet-400 border-violet-500/30';
             case 'pending': return 'bg-amber-500/20 text-amber-500 border-amber-500/30';
             case 'accepted': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
             case 'arrived_at_pickup': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
@@ -647,6 +648,7 @@ const DeliveryManagement = () => {
         }
         
         let label = delivery.status.toUpperCase();
+        if (delivery.status === 'created') label = 'RECEBIDO';
         if (delivery.status === 'pending') label = 'PENDENTE';
         if (delivery.status === 'accepted') label = 'ACEITO';
         if (delivery.status === 'arrived_at_pickup') label = 'NA LOJA';
@@ -667,12 +669,14 @@ const DeliveryManagement = () => {
     const filteredDeliveries = deliveries.filter(d => {
         const shortId = d.id.slice(-6).toUpperCase();
         const displayId = d.items?.displayId?.toString() || '';
+        const origin = (d.origin || d.items?.origin || (d as any).external_source || '').toLowerCase();
 
         const matchesSearch = d.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             d.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
             shortId.toLowerCase().includes(searchTerm.toLowerCase()) ||
             displayId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            d.store_name?.toLowerCase().includes(searchTerm.toLowerCase());
+            d.store_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+            origin.includes(searchTerm.toLowerCase());
 
         const matchesStatus = statusFilter === 'all' ||
             (statusFilter === 'delivered' ? (d.status === 'delivered' || d.status === 'completed') :
@@ -838,13 +842,20 @@ const DeliveryManagement = () => {
                     "grid gap-6",
                     viewMode === 'grid' ? "grid-cols-1 md:grid-cols-2 lg:grid-cols-3" : "grid-cols-1"
                 )}>
-                    {filteredDeliveries.map((delivery) => (
+                    {filteredDeliveries.map((delivery) => {
+                        const src = (delivery.origin || delivery.items?.origin || (delivery as any).external_source || '').toUpperCase();
+                        const isIFood = src.includes('IFOOD');
+                        const is99Food = src.includes('99');
+                        return (
                         <div
                             key={delivery.id}
                             className={cn(
-                                "group bg-white/5 border border-white/10 rounded-[1.25rem] overflow-hidden hover:bg-white/10 hover:border-white/20 transition-all duration-500 relative w-full",
+                                "group bg-white/5 border border-white/10 rounded-[1.25rem] overflow-hidden hover:bg-white/10 hover:border-white/20 transition-all duration-500 relative w-full border-l-[4px]",
                                 viewMode === 'list' ? "flex flex-col md:flex-row md:items-center p-4 px-6 gap-6 animate-in fade-in" : "flex flex-col p-8",
-                                getDelayStatus(delivery) && "border-red-500/40 shadow-[0_0_20px_rgba(239,68,68,0.15)] bg-red-500/[0.02]"
+                                isIFood ? "border-l-red-500 shadow-[0_0_20px_rgba(239,68,68,0.05)]" :
+                                is99Food ? "border-l-yellow-500 shadow-[0_0_20px_rgba(234,179,8,0.05)]" :
+                                "border-l-guepardo-orange",
+                                getDelayStatus(delivery) && "shadow-[0_0_20px_rgba(239,68,68,0.15)] bg-red-500/[0.02]"
                             )}
                         >
                             {getDelayStatus(delivery) && (
@@ -853,7 +864,7 @@ const DeliveryManagement = () => {
                             <div className="absolute -right-4 -top-4 w-24 h-24 bg-brand-gradient opacity-[0.02] group-hover:opacity-[0.05] rounded-full transition-all duration-700"></div>
 
                             {/* ID, Status & Time */}
-                            <div className={cn("flex items-center gap-4 shrink-0 w-full justify-between md:justify-start", viewMode === 'list' ? "md:w-[150px] md:shrink-0" : "flex-col mb-6 items-start gap-3")}>
+                            <div className={cn("flex items-center gap-4 shrink-0 w-full justify-between md:justify-start", viewMode === 'list' ? "md:w-[160px] md:shrink-0" : "flex-col mb-6 items-start gap-3")}>
                                 <div className="flex flex-col">
                                     <span className="text-[8px] font-black text-[#A8A29E] uppercase tracking-[0.2em] mb-0.5">Pedido</span>
                                     <span className="text-base font-black tracking-tight text-white group-hover:text-guepardo-orange transition-colors">
@@ -862,6 +873,23 @@ const DeliveryManagement = () => {
                                 </div>
 
                                 <div className="flex flex-col gap-2">
+                                    {/* Source badge (iFood / 99Food / Guepardo) */}
+                                    {(() => {
+                                        const src = (delivery.origin || delivery.items?.origin || (delivery as any).external_source || '').toUpperCase();
+                                        if (src.includes('IFOOD')) return (
+                                            <div className="px-2 py-0.5 rounded-full text-[8px] font-black border uppercase tracking-tighter bg-red-600/20 text-red-400 border-red-500/30 shadow-[0_0_8px_rgba(220,38,38,0.2)]">
+                                                iFood
+                                            </div>
+                                        );
+                                        if (src.includes('99') || src.includes('99FOOD')) return (
+                                            <div className="px-2 py-0.5 rounded-full text-[8px] font-black border uppercase tracking-tighter bg-yellow-600/20 text-yellow-400 border-yellow-500/30 shadow-[0_0_8px_rgba(234,179,8,0.2)]">
+                                                99Food
+                                            </div>
+                                        );
+                                        return null;
+                                    })()}
+
+                                    {/* Status badge */}
                                     {(() => {
                                         const { label, colorClass } = getDeliveryStatusDetails(delivery);
                                         return (
@@ -972,7 +1000,8 @@ const DeliveryManagement = () => {
                                 </button>
                             </div>
                         </div>
-                    ))}
+                    );})}
+
 
                     {filteredDeliveries.length === 0 && (
                         <div className="col-span-full py-20 flex flex-col items-center justify-center text-center bg-white/5 rounded-[3rem] border border-white/10 border-dashed backdrop-blur-sm">
