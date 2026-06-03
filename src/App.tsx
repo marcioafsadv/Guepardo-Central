@@ -186,8 +186,8 @@ const App = () => {
     }
 
     const delivered = filtered.filter(d => ['delivered', 'completed'].includes(d.status));
-    const active = filtered.filter(d => ['accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'picked_up', 'ready_for_pickup'].includes(d.status));
-    const waiting = filtered.filter(d => ['pending', 'accepted', 'arrived_at_pickup', 'ready_for_pickup'].includes(d.status));
+    const active = filtered.filter(d => ['accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'arrived_at_customer', 'picked_up', 'ready_for_pickup'].includes(d.status));
+    const waiting = filtered.filter(d => ['pending', 'accepted', 'arrived_at_pickup', 'ready_for_pickup', 'arrived_at_customer'].includes(d.status));
     const cancelled = filtered.filter(d => ['canceled', 'cancelled'].includes(d.status));
 
     const totalRevenue = delivered.reduce((acc, curr) => acc + (curr.totalMerchant || 0), 0);
