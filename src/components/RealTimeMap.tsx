@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -101,6 +101,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
     const [isSearchFocused, setIsSearchFocused] = useState(false);
     const [isHelpOpen, setIsHelpOpen] = useState(false);
     const [mapInstance, setMapInstance] = useState<L.Map | null>(null);
+    const lastCenteredDeliveryRef = useRef<string | null>(null);
     const [searchQuery, setSearchQuery] = useState('');
 
     const formatAddress = (address: any) => {
@@ -134,10 +135,12 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
 
     useEffect(() => {
         if (!selectedDeliveryId) {
-            setTimeout(() => setTrackingPoints([]), 0);
+            setTrackingPoints([]);
+            lastCenteredDeliveryRef.current = null;
             return;
         }
 
+        // Fetch tracking breadcrumbs for this delivery
         const fetchTrackingPoints = async () => {
             const { data, error } = await supabase
                 .from('delivery_tracking')
@@ -148,19 +151,13 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
             if (!error && data) {
                 const points = data.map(p => [p.latitude, p.longitude] as [number, number]);
                 setTrackingPoints(points);
-
-                if (points.length > 0 && mapInstance) {
-                    mapInstance.fitBounds(L.latLngBounds(points), { padding: [50, 50] });
-                }
             }
         };
 
-        setTimeout(() => {
-            void fetchTrackingPoints();
-        }, 0);
+        void fetchTrackingPoints();
 
         const channel = supabase
-            .channel(`tracking - ${selectedDeliveryId} `)
+            .channel(`tracking-${selectedDeliveryId}`)
             .on('postgres_changes', {
                 event: 'INSERT',
                 schema: 'public',
@@ -171,28 +168,42 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                 setTrackingPoints(prev => [...prev, newPoint]);
             })
             .subscribe();
+
         return () => {
             supabase.removeChannel(channel);
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [selectedDeliveryId, mapInstance, supabase, deliveries, drivers]);
+    }, [selectedDeliveryId, supabase]);
 
-    // 3. Auto-center on selected delivery/driver
+    // Auto-center on selected delivery — ONLY once per selection change (not on realtime updates)
     useEffect(() => {
-        if (!selectedDeliveryId || !mapInstance || deliveries.length === 0) return;
+        if (!selectedDeliveryId || !mapInstance) return;
+        // Guard: skip if we already centered for this delivery
+        if (lastCenteredDeliveryRef.current === selectedDeliveryId) return;
 
         const delivery = deliveries.find(d => d.id === selectedDeliveryId);
-        if (delivery) {
-            const driverId = delivery.driver_id || delivery.courier_id;
-            const driver = drivers.find(p => p.id === driverId);
-            
-            // Priority: Driver location -> Delivery location
-            const targetLat = driver?.current_lat || driver?.latitude || delivery.latitude;
-            const targetLng = driver?.current_lng || driver?.longitude || delivery.longitude;
+        if (!delivery) return;
 
-            if (targetLat && targetLng) {
-                mapInstance.flyTo([targetLat, targetLng], 15, { duration: 1.5 });
-            }
+        lastCenteredDeliveryRef.current = selectedDeliveryId;
+
+        const driverId = (delivery as any).driver_id || (delivery as any).courier_id;
+        const driver = drivers.find(p => p.id === driverId);
+
+        // Build bounds to fit both driver position AND delivery destination
+        const driverLat = driver?.current_lat || driver?.latitude;
+        const driverLng = driver?.current_lng || driver?.longitude;
+        const destLat = delivery.latitude;
+        const destLng = delivery.longitude;
+
+        if (driverLat && driverLng && destLat && destLng) {
+            // Fit map to show both the driver and the destination
+            const bounds = L.latLngBounds(
+                [[driverLat, driverLng], [destLat, destLng]]
+            );
+            mapInstance.fitBounds(bounds, { padding: [60, 60], maxZoom: 16, animate: true });
+        } else if (driverLat && driverLng) {
+            mapInstance.flyTo([driverLat, driverLng], 16, { duration: 1.5 });
+        } else if (destLat && destLng) {
+            mapInstance.flyTo([destLat, destLng], 16, { duration: 1.5 });
         }
     }, [selectedDeliveryId, mapInstance, deliveries, drivers]);
 

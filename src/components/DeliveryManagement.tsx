@@ -624,7 +624,11 @@ const DeliveryManagement = () => {
         switch (status.toLowerCase()) {
             case 'pending': return 'bg-amber-500/20 text-amber-500 border-amber-500/30';
             case 'accepted': return 'bg-blue-500/20 text-blue-400 border-blue-500/30';
+            case 'arrived_at_pickup': return 'bg-orange-500/20 text-orange-400 border-orange-500/30';
+            case 'ready_for_pickup': return 'bg-cyan-500/20 text-cyan-400 border-cyan-500/30';
+            case 'picked_up': return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30';
             case 'in_transit': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
+            case 'arrived_at_customer': return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
             case 'delivered':
             case 'completed': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]';
             case 'canceled':
@@ -645,7 +649,12 @@ const DeliveryManagement = () => {
         let label = delivery.status.toUpperCase();
         if (delivery.status === 'pending') label = 'PENDENTE';
         if (delivery.status === 'accepted') label = 'ACEITO';
+        if (delivery.status === 'arrived_at_pickup') label = 'NA LOJA';
+        if (delivery.status === 'ready_for_pickup') label = 'PEDIDO PRONTO';
+        if (delivery.status === 'picked_up') label = 'COLETADO';
         if (delivery.status === 'in_transit') label = 'EM ROTA';
+        if (delivery.status === 'arrived_at_customer') label = 'NO CLIENTE';
+        if (delivery.status === 'arrived_at_delivery') label = 'NO DESTINO';
         if (delivery.status === 'completed' || delivery.status === 'delivered') label = 'CONCLUÍDO';
         if (delivery.status === 'canceled' || delivery.status === 'cancelled') label = 'CANCELADO';
         
