@@ -90,20 +90,17 @@ const getStatusDescription = (status: string): string => {
 
 const LiveTrackingSidebar: React.FC<LiveTrackingSidebarProps> = ({ deliveries, onSelectDelivery, onChat, selectedId }) => {
     const activeDeliveries = deliveries.filter(d => {
-        const isPending = d.status === 'pending';
-        if (isPending) {
+        // Exclude only truly finished deliveries; show everything else (any active/intermediate status)
+        const isFinished = ['completed', 'delivered', 'canceled', 'cancelled'].includes(d.status);
+        if (isFinished) return false;
+
+        // For pending, exclude scheduled ones
+        if (d.status === 'pending') {
             const isScheduled = d.items?.scheduledAt || (d as any).scheduled_at;
             return !isScheduled;
         }
-        return [
-            'accepted',
-            'in_transit',
-            'arrived_at_pickup',
-            'arrived_at_delivery',
-            'arrived_at_customer',
-            'picked_up',
-            'ready_for_pickup'
-        ].includes(d.status);
+
+        return true; // Show all other statuses: accepted, arrived_at_pickup, ready_for_pickup, picked_up, in_transit, arrived_at_customer, etc.
     });
 
     return (

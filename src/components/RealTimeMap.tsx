@@ -218,7 +218,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
             const { data: deliveriesData } = await supabase
                 .from('deliveries')
                 .select('*')
-                .in('status', ['pending', 'accepted', 'in_transit', 'arrived_at_pickup', 'arrived_at_delivery', 'arrived_at_customer', 'picked_up', 'ready_for_pickup']);
+                .not('status', 'in', '(completed,delivered,canceled,cancelled)');
 
             const { data: storesData } = await supabase
                 .from('stores')
