@@ -19,7 +19,8 @@ import {
     Upload,
     ZoomIn,
     ZoomOut,
-    ExternalLink
+    ExternalLink,
+    Trash2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import type { Profile } from '../types';
@@ -848,6 +849,33 @@ const DriverManagement = () => {
         }
     };
 
+    const handleDeleteDriver = async (driver: DriverWithDetails) => {
+        const name = driver.full_name || 'este entregador';
+        const confirmed = window.confirm(
+            `⚠️ Tem certeza que deseja EXCLUIR permanentemente o cadastro de "${name}"?\n\nEssa ação não pode ser desfeita.`
+        );
+        if (!confirmed) return;
+
+        try {
+            // Exclui registros relacionados antes de excluir o perfil
+            await Promise.allSettled([
+                supabase.from('vehicles').delete().eq('user_id', driver.id),
+                supabase.from('addresses').delete().eq('user_id', driver.id),
+                supabase.from('bank_accounts').delete().eq('user_id', driver.id),
+            ]);
+
+            const { error } = await supabase.from('profiles').delete().eq('id', driver.id);
+            if (error) throw error;
+
+            // Remove da lista local imediatamente
+            setDrivers(prev => prev.filter(d => d.id !== driver.id));
+            if (selectedDriver?.id === driver.id) setSelectedDriver(null);
+        } catch (err: any) {
+            console.error('Erro ao excluir entregador:', err);
+            alert(`Erro ao excluir: ${err?.message || 'Tente novamente'}`);
+        }
+    };
+
     const filteredDrivers = drivers.filter(d => {
         const matchesSearch = d.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
             d.cpf?.includes(searchTerm) ||
@@ -1027,6 +1055,13 @@ const DriverManagement = () => {
                                         <CheckCircle2 className="w-5 h-5" />
                                     </button>
                                 )}
+                                <button
+                                    onClick={() => handleDeleteDriver(driver)}
+                                    className="p-3.5 bg-red-500/10 hover:bg-red-500 text-red-500 hover:text-white rounded-[1.25rem] border border-red-500/30 hover:border-red-500 hover:shadow-[0_0_20px_rgba(239,68,68,0.4)] active:scale-95 transition-all duration-200"
+                                    title="Excluir cadastro permanentemente"
+                                >
+                                    <Trash2 className="w-5 h-5" />
+                                </button>
                             </div>
                         </div>
                     ))}
