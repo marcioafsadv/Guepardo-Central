@@ -112,7 +112,12 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
         if (zoom === 1) setPosition({ x: 0, y: 0 });
     }, [zoom]);
 
-    // Sync docUrls when driver data is refreshed externally
+    // Sync docUrls only when driver data is refreshed externally.
+    // NOTE: We intentionally do NOT reset docTypes here — docTypes is managed by:
+    //   1. useState initializer (isPdfUrl on existing URLs when modal opens)
+    //   2. handleUpload (file.type MIME check — 100% reliable)
+    // Resetting docTypes here would cause a race condition where onRefresh() 
+    // re-reads the DB and the URL check might fail for newly uploaded files.
     useEffect(() => {
         const v = driver.vehicles;
         setDocUrls({
@@ -122,14 +127,6 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             bike_photo: v?.bike_photo_url,
             residence: v?.proof_of_residence_url,
             avatar: driver.avatar_url
-        });
-        setDocTypes({
-            cnh_front: isPdfUrl(v?.cnh_front_url) ? 'pdf' : 'image',
-            cnh_back: isPdfUrl(v?.cnh_back_url) ? 'pdf' : 'image',
-            crlv: isPdfUrl(v?.crlv_url) ? 'pdf' : 'image',
-            bike_photo: isPdfUrl(v?.bike_photo_url) ? 'pdf' : 'image',
-            residence: isPdfUrl(v?.proof_of_residence_url) ? 'pdf' : 'image',
-            avatar: 'image'
         });
     }, [driver]);
 
