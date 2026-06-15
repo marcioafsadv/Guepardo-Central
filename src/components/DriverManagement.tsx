@@ -101,6 +101,18 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
         if (zoom === 1) setPosition({ x: 0, y: 0 });
     }, [zoom]);
 
+    // Sync docUrls when driver data is refreshed externally
+    useEffect(() => {
+        setDocUrls({
+            cnh_front: driver.vehicles?.cnh_front_url,
+            cnh_back: driver.vehicles?.cnh_back_url,
+            crlv: driver.vehicles?.crlv_url,
+            bike_photo: driver.vehicles?.bike_photo_url,
+            residence: driver.vehicles?.proof_of_residence_url,
+            avatar: driver.avatar_url
+        });
+    }, [driver]);
+
     const handleMouseDown = (e: React.MouseEvent) => {
         if (zoom > 1) {
             setIsDragging(true);
@@ -197,6 +209,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                            docType === 'Foto Perfil' ? 'avatar' : 'avatar';
 
             setDocUrls(prev => ({ ...prev, [docKey]: newUrl }));
+            // Refresh parent list in background (does not close the modal)
             onRefresh();
             
         } catch (err: any) {
@@ -793,6 +806,13 @@ const DriverManagement = () => {
             });
 
             setDrivers(mappedDrivers);
+
+            // If a driver modal is open, update it with fresh data
+            setSelectedDriver(prev => {
+                if (!prev) return null;
+                const updated = mappedDrivers.find(d => d.id === prev.id);
+                return updated ? { ...updated, addresses: prev.addresses, bank_accounts: prev.bank_accounts } : prev;
+            });
         } catch (err) {
             console.error('Error fetching drivers:', err);
         } finally {
