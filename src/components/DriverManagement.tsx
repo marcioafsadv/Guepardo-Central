@@ -129,8 +129,9 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             const baseName = docType === 'CNH Frente' ? 'cnh_front' :
                              docType === 'CNH Verso' ? 'cnh_back' :
                              docType === 'CRLV' ? 'crlv' :
-                             docType === 'Foto Veículo' ? 'bike_photo' : 
-                             docType === 'Comprovante Residência' ? 'residence' : 'avatar';
+                             docType === 'Foto Veículo' ? 'bike_photo' :
+                             docType === 'Comprovante Residência' ? 'residence' :
+                             docType === 'Foto Perfil' ? 'avatar' : 'avatar';
             
             const fileName = `${baseName}.${ext}`;
             const filePath = `${driver.id}/${fileName}`;
@@ -156,8 +157,9 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             const docField = docType === 'CNH Frente' ? 'cnh_front_url' :
                              docType === 'CNH Verso' ? 'cnh_back_url' :
                              docType === 'CRLV' ? 'crlv_url' :
-                             docType === 'Foto Veículo' ? 'bike_photo_url' : 
-                             docType === 'Comprovante Residência' ? 'proof_of_residence_url' : 'avatar_url';
+                             docType === 'Foto Veículo' ? 'bike_photo_url' :
+                             docType === 'Comprovante Residência' ? 'proof_of_residence_url' :
+                             docType === 'Foto Perfil' ? 'avatar_url' : 'avatar_url';
 
             if (docField === 'avatar_url') {
                 const { error: avatarError } = await supabase.from('profiles').update({ avatar_url: newUrl }).eq('id', driver.id);
@@ -190,8 +192,9 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             const docKey = docType === 'CNH Frente' ? 'cnh_front' :
                            docType === 'CNH Verso' ? 'cnh_back' :
                            docType === 'CRLV' ? 'crlv' :
-                           docType === 'Foto Veículo' ? 'bike_photo' : 
-                           docType === 'Comprovante Residência' ? 'residence' : 'avatar';
+                           docType === 'Foto Veículo' ? 'bike_photo' :
+                           docType === 'Comprovante Residência' ? 'residence' :
+                           docType === 'Foto Perfil' ? 'avatar' : 'avatar';
 
             setDocUrls(prev => ({ ...prev, [docKey]: newUrl }));
             onRefresh();
@@ -224,12 +227,12 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
 
                 {/* Left Panel: Profile Summary */}
                 <div className="w-full md:w-1/3 bg-black/20 border-b md:border-b-0 md:border-r border-white/10 p-6 md:p-8 flex flex-col items-center text-center overflow-y-auto shrink-0">
-                    <div 
-                        className="relative group mb-6 cursor-pointer"
-                        onClick={() => driver.avatar_url && setViewingPhoto({ url: driver.avatar_url, label: 'Foto de Perfil' })}
-                    >
+                    <div className="relative group mb-6">
                         <div className="absolute -inset-1 bg-brand-gradient rounded-full blur opacity-50 group-hover:opacity-100 transition duration-1000"></div>
-                        <div className="w-32 h-32 rounded-full bg-guepardo-brown-light border-4 border-white/10 overflow-hidden relative shadow-2xl">
+                        <div 
+                            className="w-32 h-32 rounded-full bg-guepardo-brown-light border-4 border-white/10 overflow-hidden relative shadow-2xl cursor-pointer"
+                            onClick={() => docUrls.avatar && setViewingPhoto({ url: docUrls.avatar, label: 'Foto de Perfil' })}
+                        >
                             {docUrls.avatar ? (
                                 <img src={docUrls.avatar} alt={driver.full_name} className="w-full h-full object-cover" />
                             ) : (
@@ -238,6 +241,27 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                 </div>
                             )}
                         </div>
+                        {/* Upload overlay on avatar */}
+                        <label
+                            className="absolute bottom-0 right-0 cursor-pointer p-2 bg-guepardo-orange rounded-full border-2 border-guepardo-brown-dark shadow-lg hover:scale-110 transition-all z-10"
+                            title="Enviar foto de perfil"
+                        >
+                            <Upload className="w-3.5 h-3.5 text-white" />
+                            <input
+                                type="file"
+                                className="hidden"
+                                accept="image/*"
+                                onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (file) handleUpload('Foto Perfil', file);
+                                }}
+                            />
+                        </label>
+                        {uploadingDoc === 'Foto Perfil' && (
+                            <div className="absolute inset-0 rounded-full bg-black/60 backdrop-blur-sm flex items-center justify-center z-20">
+                                <div className="w-6 h-6 border-2 border-guepardo-orange/20 border-t-guepardo-orange rounded-full animate-spin"></div>
+                            </div>
+                        )}
                     </div>
                     <h3 className="text-2xl font-black text-white tracking-tight mb-2">{driver.full_name}</h3>
                     <span className={cn("px-4 py-1.5 rounded-full text-[10px] font-black border uppercase tracking-widest mb-6 shadow-sm",
@@ -453,6 +477,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
                             {[
+                                { label: 'Foto Perfil', url: docUrls.avatar },
                                 { label: 'CNH Frente', url: docUrls.cnh_front },
                                 { label: 'CNH Verso', url: docUrls.cnh_back },
                                 { label: 'CRLV', url: docUrls.crlv },
