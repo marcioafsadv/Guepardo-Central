@@ -701,28 +701,11 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                 </div>
                             )}
                             {viewingPhoto.isPdf && (
-                                <div className="relative z-10 w-full h-full flex flex-col items-center justify-center gap-8 p-10">
-                                    <div className="w-28 h-28 bg-red-500/10 rounded-3xl border border-red-500/20 flex items-center justify-center shadow-xl">
-                                        <FileText className="w-14 h-14 text-red-400" />
-                                    </div>
-                                    <div className="text-center space-y-2">
-                                        <h4 className="text-white font-black text-xl tracking-tight">Documento PDF</h4>
-                                        <p className="text-[#A8A29E] text-sm">A pré-visualização embutida não está disponível para este arquivo.</p>
-                                    </div>
-                                    <a
-                                        href={viewingPhoto.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="px-8 py-4 bg-brand-gradient rounded-2xl font-black text-white text-sm flex items-center gap-3 hover:scale-105 transition-all shadow-lg"
-                                        onClick={(e) => e.stopPropagation()}
-                                    >
-                                        <ExternalLink className="w-5 h-5" />
-                                        ABRIR PDF EM NOVA ABA
-                                    </a>
-                                    <p className="text-[#57534E] text-[10px] font-black uppercase tracking-widest">
-                                        O PDF será aberto em uma nova janela do navegador
-                                    </p>
-                                </div>
+                                <iframe 
+                                    src={viewingPhoto.url} 
+                                    className="w-full h-full rounded-[2.5rem] relative z-10 bg-white border-0"
+                                    title={viewingPhoto.label}
+                                />
                             )}
                         </div>
                         
