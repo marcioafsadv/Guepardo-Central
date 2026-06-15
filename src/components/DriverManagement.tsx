@@ -75,7 +75,7 @@ const getBankName = (code?: string, name?: string) => {
 
 const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: DriverDetailsModalProps) => {
     const [updating, setUpdating] = useState(false);
-    const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string } | null>(null);
+    const [viewingPhoto, setViewingPhoto] = useState<{ url: string; label: string; isPdf?: boolean } | null>(null);
     const [rotation, setRotation] = useState(0);
     const [zoom, setZoom] = useState(1);
     const [position, setPosition] = useState({ x: 0, y: 0 });
@@ -91,6 +91,17 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
         avatar: driver.avatar_url
     });
 
+    // Track whether each doc is a PDF (by MIME type from upload, or URL extension as fallback)
+    const isPdfUrl = (url?: string) => !!url && url.toLowerCase().includes('.pdf');
+    const [docTypes, setDocTypes] = useState<Record<string, 'pdf' | 'image'>>({
+        cnh_front: isPdfUrl(driver.vehicles?.cnh_front_url) ? 'pdf' : 'image',
+        cnh_back: isPdfUrl(driver.vehicles?.cnh_back_url) ? 'pdf' : 'image',
+        crlv: isPdfUrl(driver.vehicles?.crlv_url) ? 'pdf' : 'image',
+        bike_photo: isPdfUrl(driver.vehicles?.bike_photo_url) ? 'pdf' : 'image',
+        residence: isPdfUrl(driver.vehicles?.proof_of_residence_url) ? 'pdf' : 'image',
+        avatar: 'image'
+    });
+
     useEffect(() => {
         setRotation(0);
         setZoom(1);
@@ -103,13 +114,22 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
 
     // Sync docUrls when driver data is refreshed externally
     useEffect(() => {
+        const v = driver.vehicles;
         setDocUrls({
-            cnh_front: driver.vehicles?.cnh_front_url,
-            cnh_back: driver.vehicles?.cnh_back_url,
-            crlv: driver.vehicles?.crlv_url,
-            bike_photo: driver.vehicles?.bike_photo_url,
-            residence: driver.vehicles?.proof_of_residence_url,
+            cnh_front: v?.cnh_front_url,
+            cnh_back: v?.cnh_back_url,
+            crlv: v?.crlv_url,
+            bike_photo: v?.bike_photo_url,
+            residence: v?.proof_of_residence_url,
             avatar: driver.avatar_url
+        });
+        setDocTypes({
+            cnh_front: isPdfUrl(v?.cnh_front_url) ? 'pdf' : 'image',
+            cnh_back: isPdfUrl(v?.cnh_back_url) ? 'pdf' : 'image',
+            crlv: isPdfUrl(v?.crlv_url) ? 'pdf' : 'image',
+            bike_photo: isPdfUrl(v?.bike_photo_url) ? 'pdf' : 'image',
+            residence: isPdfUrl(v?.proof_of_residence_url) ? 'pdf' : 'image',
+            avatar: 'image'
         });
     }, [driver]);
 
@@ -208,6 +228,9 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                            docType === 'Comprovante Residência' ? 'residence' :
                            docType === 'Foto Perfil' ? 'avatar' : 'avatar';
 
+            // Detect file type reliably from MIME (not URL string)
+            const fileIsPdf = file.type === 'application/pdf';
+            setDocTypes(prev => ({ ...prev, [docKey]: fileIsPdf ? 'pdf' : 'image' }));
             setDocUrls(prev => ({ ...prev, [docKey]: newUrl }));
             // Refresh parent list in background (does not close the modal)
             onRefresh();
@@ -244,7 +267,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                         <div className="absolute -inset-1 bg-brand-gradient rounded-full blur opacity-50 group-hover:opacity-100 transition duration-1000"></div>
                         <div 
                             className="w-32 h-32 rounded-full bg-guepardo-brown-light border-4 border-white/10 overflow-hidden relative shadow-2xl cursor-pointer"
-                            onClick={() => docUrls.avatar && setViewingPhoto({ url: docUrls.avatar, label: 'Foto de Perfil' })}
+                            onClick={() => docUrls.avatar && setViewingPhoto({ url: docUrls.avatar, label: 'Foto de Perfil', isPdf: false })}
                         >
                             {docUrls.avatar ? (
                                 <img src={docUrls.avatar} alt={driver.full_name} className="w-full h-full object-cover" />
@@ -490,20 +513,20 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 gap-6">
                             {[
-                                { label: 'Foto Perfil', url: docUrls.avatar },
-                                { label: 'CNH Frente', url: docUrls.cnh_front },
-                                { label: 'CNH Verso', url: docUrls.cnh_back },
-                                { label: 'CRLV', url: docUrls.crlv },
-                                { label: 'Foto Veículo', url: docUrls.bike_photo },
-                                { label: 'Comprovante Residência', url: docUrls.residence }
+                                { label: 'Foto Perfil', key: 'avatar', url: docUrls.avatar },
+                                { label: 'CNH Frente', key: 'cnh_front', url: docUrls.cnh_front },
+                                { label: 'CNH Verso', key: 'cnh_back', url: docUrls.cnh_back },
+                                { label: 'CRLV', key: 'crlv', url: docUrls.crlv },
+                                { label: 'Foto Veículo', key: 'bike_photo', url: docUrls.bike_photo },
+                                { label: 'Comprovante Residência', key: 'residence', url: docUrls.residence }
                             ].map((doc, i) => (
                                 <div key={i} className="space-y-3 group/doc relative">
                                     <div 
                                         className="aspect-[4/3] bg-black/40 rounded-2xl border border-white/10 overflow-hidden relative shadow-inner group-hover/doc:border-guepardo-orange/50 transition-all cursor-pointer"
-                                        onClick={() => doc.url && setViewingPhoto({ url: doc.url, label: doc.label })}
+                                        onClick={() => doc.url && setViewingPhoto({ url: doc.url, label: doc.label, isPdf: docTypes[doc.key] === 'pdf' })}
                                     >
                                         {doc.url ? (
-                                            doc.url.toLowerCase().includes('.pdf') ? (
+                                            docTypes[doc.key] === 'pdf' ? (
                                                 <div className="w-full h-full flex flex-col items-center justify-center bg-red-500/5 text-red-400 gap-2">
                                                     <FileText className="w-10 h-10" />
                                                     <span className="text-[10px] font-black tracking-widest">VISUALIZAR PDF</span>
@@ -555,7 +578,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                 >
                     <div className="absolute top-6 right-6 flex items-center gap-4 z-[70]">
                         {/* Zoom Controls */}
-                        {!viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                        {!viewingPhoto.isPdf && (
                             <div className="flex bg-white/10 rounded-full p-1 border border-white/10 shadow-2xl backdrop-blur-md">
                                 <button 
                                     onClick={(e) => {
@@ -590,7 +613,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                             </div>
                         )}
 
-                        {viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                        {viewingPhoto.isPdf && (
                             <a 
                                 href={viewingPhoto.url} 
                                 target="_blank" 
@@ -641,7 +664,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                         
                         <div className="relative w-full flex-1 bg-black/40 rounded-[2.5rem] border border-white/10 overflow-hidden shadow-2xl group/viewer flex items-center justify-center">
                             <div className="absolute inset-0 bg-brand-gradient opacity-5"></div>
-                            {!viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                            {!viewingPhoto.isPdf && (
                                 <div 
                                     className="absolute inset-0 overflow-hidden flex items-center justify-center p-12 custom-scrollbar"
                                     onMouseMove={handleMouseMove}
@@ -664,7 +687,7 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                     />
                                 </div>
                             )}
-                            {viewingPhoto.url.toLowerCase().includes('.pdf') && (
+                            {viewingPhoto.isPdf && (
                                 <iframe 
                                     src={viewingPhoto.url} 
                                     className="w-full h-full rounded-[2.5rem] relative z-10"
