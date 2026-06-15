@@ -128,6 +128,14 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
             residence: v?.proof_of_residence_url,
             avatar: driver.avatar_url
         });
+        setDocTypes({
+            cnh_front: isPdfUrl(v?.cnh_front_url) ? 'pdf' : 'image',
+            cnh_back: isPdfUrl(v?.cnh_back_url) ? 'pdf' : 'image',
+            crlv: isPdfUrl(v?.crlv_url) ? 'pdf' : 'image',
+            bike_photo: isPdfUrl(v?.bike_photo_url) ? 'pdf' : 'image',
+            residence: isPdfUrl(v?.proof_of_residence_url) ? 'pdf' : 'image',
+            avatar: 'image'
+        });
     }, [driver]);
 
     const handleMouseDown = (e: React.MouseEvent) => {
@@ -529,7 +537,15 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                                     <span className="text-[10px] font-black tracking-widest">VISUALIZAR PDF</span>
                                                 </div>
                                             ) : (
-                                                <img src={doc.url} alt={doc.label} className="w-full h-full object-cover transition-transform group-hover/doc:scale-110" />
+                                                <img
+                                                    src={doc.url}
+                                                    alt={doc.label}
+                                                    className="w-full h-full object-cover transition-transform group-hover/doc:scale-110"
+                                                    onError={() => {
+                                                        // Auto-detect: if img fails to load, it's probably a PDF
+                                                        setDocTypes(prev => ({ ...prev, [doc.key]: 'pdf' }));
+                                                    }}
+                                                />
                                             )
                                         ) : (
                                             <div className="w-full h-full flex flex-col items-center justify-center text-[10px] font-bold text-[#57534E] gap-2">
@@ -685,11 +701,28 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                 </div>
                             )}
                             {viewingPhoto.isPdf && (
-                                <iframe 
-                                    src={viewingPhoto.url} 
-                                    className="w-full h-full rounded-[2.5rem] relative z-10"
-                                    title={viewingPhoto.label}
-                                />
+                                <div className="relative z-10 w-full h-full flex flex-col items-center justify-center gap-8 p-10">
+                                    <div className="w-28 h-28 bg-red-500/10 rounded-3xl border border-red-500/20 flex items-center justify-center shadow-xl">
+                                        <FileText className="w-14 h-14 text-red-400" />
+                                    </div>
+                                    <div className="text-center space-y-2">
+                                        <h4 className="text-white font-black text-xl tracking-tight">Documento PDF</h4>
+                                        <p className="text-[#A8A29E] text-sm">A pré-visualização embutida não está disponível para este arquivo.</p>
+                                    </div>
+                                    <a
+                                        href={viewingPhoto.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="px-8 py-4 bg-brand-gradient rounded-2xl font-black text-white text-sm flex items-center gap-3 hover:scale-105 transition-all shadow-lg"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
+                                        <ExternalLink className="w-5 h-5" />
+                                        ABRIR PDF EM NOVA ABA
+                                    </a>
+                                    <p className="text-[#57534E] text-[10px] font-black uppercase tracking-widest">
+                                        O PDF será aberto em uma nova janela do navegador
+                                    </p>
+                                </div>
                             )}
                         </div>
                         
