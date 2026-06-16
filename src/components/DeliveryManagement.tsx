@@ -695,7 +695,7 @@ const DeliveryManagement = () => {
                 const [datePart, timePart] = scheduledAt.split('T');
                 const dateSubparts = datePart.split('-');
                 if (dateSubparts.length === 3) {
-                    const [y, m, dVal] = dateSubparts;
+                    const [, m, dVal] = dateSubparts;
                     displayStr = `${dVal}/${m} ${timePart}`;
                 }
             }
