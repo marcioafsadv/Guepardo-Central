@@ -78,7 +78,7 @@ const App = () => {
     }
     
     try {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
