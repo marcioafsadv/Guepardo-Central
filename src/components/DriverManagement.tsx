@@ -44,7 +44,7 @@ interface DriverWithDetails extends Profile {
 interface DriverDetailsModalProps {
     driver: DriverWithDetails;
     onClose: () => void;
-    onStatusUpdate: (status: string, rejectionReason?: string) => void;
+    onStatusUpdate: (status: string, rejectionReason?: string) => Promise<void>;
     onRefresh: () => void;
 }
 
@@ -951,8 +951,9 @@ const DriverManagement = () => {
             if (selectedDriver?.id === userId) {
                 setSelectedDriver(prev => prev ? { ...prev, status: newStatus, rejection_reason: updatePayload.rejection_reason } : null);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error('Error updating status:', err);
+            alert(`Erro ao atualizar status: ${err.message || 'Erro desconhecido'}`);
         }
     };
 
