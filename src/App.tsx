@@ -28,6 +28,8 @@ const currencyFormatter = new Intl.NumberFormat('pt-BR', {
 const App = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [isValidatingAdmin, setIsValidatingAdmin] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState('dashboard');
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     return (localStorage.getItem('guepardo-theme') as 'dark' | 'light') || 'dark';
@@ -60,16 +62,66 @@ const App = () => {
     }
   }, [storeToast]);
 
+  const checkAdminRole = async (user: any) => {
+    if (!user) return false;
+    const adminEmails = [
+      'marcioafs.adv@gmail.com',
+      'marcioafsadv@gmail.com',
+      'marcio.chair100@gmail.com',
+      'marcio@torresesilvaadvocacia.com.br',
+      'marcioafs@adv.oabsp.org.br',
+      'guepardodelivery2026@gmail.com'
+    ];
+    
+    if (user.email && adminEmails.includes(user.email)) {
+      return true;
+    }
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+        
+      if (data && data.role === 'admin') {
+        return true;
+      }
+    } catch (err) {
+      console.error('Erro ao verificar cargo de administrador:', err);
+    }
+    return false;
+  };
+
   useEffect(() => {
+    const handleAuthSession = async (currentSession: any) => {
+      if (currentSession?.user) {
+        setIsValidatingAdmin(true);
+        const isAdmin = await checkAdminRole(currentSession.user);
+        if (isAdmin) {
+          setSession(currentSession);
+          setAuthError(null);
+        } else {
+          console.warn('Bloqueando acesso de não-administrador:', currentSession.user.email);
+          await supabase.auth.signOut();
+          setSession(null);
+          setAuthError('Acesso negado: Este painel é de uso exclusivo de administradores.');
+        }
+        setIsValidatingAdmin(false);
+      } else {
+        setSession(null);
+      }
+      setLoading(false);
+    };
+
     // Check current session
     void supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
+      void handleAuthSession(session);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+      void handleAuthSession(session);
     });
 
     return () => subscription.unsubscribe();
@@ -269,12 +321,14 @@ const App = () => {
     { id: 'settings', label: 'Configurações', icon: Settings },
   ];
 
-  if (loading) {
+  if (loading || isValidatingAdmin) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-chocolate-panel text-white">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-guepardo-orange border-t-transparent rounded-full animate-spin"></div>
-          <p className="font-bold tracking-widest uppercase text-xs">Carregando Guepardo Central...</p>
+          <p className="font-bold tracking-widest uppercase text-xs">
+            {isValidatingAdmin ? "Validando permissões..." : "Carregando Guepardo Central..."}
+          </p>
         </div>
       </div>
     );
@@ -295,6 +349,12 @@ const App = () => {
             <h1 className="text-4xl font-black italic tracking-tighter shadow-sm mb-1">GUEPARDO</h1>
             <p className="text-guepardo-orange font-bold text-xs tracking-[0.3em]">CENTRAL DE LIDERANÇA</p>
           </div>
+
+          {authError && (
+            <div className="w-full p-4 bg-red-500/10 border border-red-500/20 rounded-2xl text-red-500 text-xs font-bold text-center leading-relaxed">
+              {authError}
+            </div>
+          )}
           
           <div className="w-full space-y-4">
             <button 
