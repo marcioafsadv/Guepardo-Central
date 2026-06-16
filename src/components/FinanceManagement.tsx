@@ -366,58 +366,6 @@ const FinanceManagement = () => {
         window.print();
     };
 
-    const handleApprovePayout = async (payoutId: string) => {
-        try {
-            setIsProcessing(payoutId);
-            
-            const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-            
-            if (sessionError || !session) {
-                throw new Error('Sessão expirada. Por favor, faça login novamente.');
-            }
-
-            const { data, error } = await supabase.functions.invoke('process-payout', {
-                body: { payoutId }
-            });
-            
-            if (error) {
-                // Tentar extrair a mensagem de erro do corpo da resposta do Supabase
-                let errorMessage = error.message || 'Erro ao processar pagamento';
-                try {
-                    const errorData = JSON.parse(error.message);
-                    if (errorData.error) errorMessage = errorData.error;
-                } catch (e) {}
-                throw new Error(errorMessage);
-            }
-
-            if (data?.success === false) {
-                throw new Error(data.error || 'Erro no processamento');
-            }
-
-            // Sucesso (Pode ser automático ou solicitação de PIX manual)
-            if (data?.manual_required) {
-                setManualPayoutData({ ...data.payout_details, id: payoutId, error: data.error });
-            } else {
-                alert(`Repasse realizado com sucesso! ID Transação Asaas: ${data?.data?.id || 'N/A'}`);
-            }
-
-            setPayouts(prev => prev.map(p => 
-                p.id === payoutId 
-                    ? { ...p, status: 'completed', processed_at: new Date().toISOString() } 
-                    : p
-            ));
-            
-            void fetchPayouts();
-            void fetchFinanceData();
-
-        } catch (err: any) {
-            console.error('Error approving payout:', err);
-            alert(err.message || 'Falha ao processar repasse');
-        } finally {
-            setIsProcessing(null);
-        }
-    };
-
     const handleResetPayoutStatus = async (payoutId: string) => {
         try {
             setIsProcessing(payoutId);
@@ -1033,40 +981,21 @@ const FinanceManagement = () => {
                                              <td className="px-8 py-5 text-right">
                                                 <div className="flex items-center justify-end gap-4">
                                                     {p.status === 'pending' && (
-                                                        <div className="flex items-center gap-3">
-                                                            <button
-                                                                onClick={() => {
-                                                                    setManualPayoutData({
-                                                                        id: p.id,
-                                                                        amount: Number(p.amount),
-                                                                        pix_key: p.pix_key,
-                                                                        error: 'Fluxo Manual Selecionado'
-                                                                    });
-                                                                }}
-                                                                disabled={isProcessing !== null}
-                                                                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-white text-[10px] font-black uppercase tracking-widest rounded-xl border border-white/10 transition-all flex items-center gap-2"
-                                                            >
-                                                                <Copy size={12} />
-                                                                Pagar Manual
-                                                            </button>
-                                                            <button
-                                                                onClick={() => handleApprovePayout(p.id)}
-                                                                disabled={isProcessing !== null}
-                                                                className="px-4 py-2 bg-brand-gradient text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
-                                                            >
-                                                                {isProcessing === p.id ? (
-                                                                    <>
-                                                                        <div className="w-3 h-3 border-2 border-white/20 border-t-white rounded-full animate-spin"></div>
-                                                                        Processando
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <ArrowDownLeft size={14} />
-                                                                        Aprovar via API
-                                                                    </>
-                                                                )}
-                                                            </button>
-                                                        </div>
+                                                        <button
+                                                            onClick={() => {
+                                                                setManualPayoutData({
+                                                                    id: p.id,
+                                                                    amount: Number(p.amount),
+                                                                    pix_key: p.pix_key,
+                                                                    error: 'Fluxo Manual Selecionado'
+                                                                });
+                                                            }}
+                                                            disabled={isProcessing !== null}
+                                                            className="px-4 py-2 bg-brand-gradient text-white text-[10px] font-black uppercase tracking-widest rounded-xl shadow-glow hover:scale-105 active:scale-95 transition-all disabled:opacity-50 disabled:scale-100 flex items-center gap-2"
+                                                        >
+                                                            <ArrowDownLeft size={14} />
+                                                            Pagar Manual
+                                                        </button>
                                                     )}
                                                     {p.status === 'processing' && (
                                                         <button
