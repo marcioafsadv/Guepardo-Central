@@ -273,7 +273,21 @@ const OrderDetailsModal = ({ delivery, onClose, onShowTracking }: OrderDetailsMo
                     {(delivery.status === 'pending' || delivery.status === 'scheduled') && (delivery.items?.scheduledAt || (delivery as any).scheduled_at) ? (() => {
                         const scheduledTimeStr = delivery.items?.scheduledAt || (delivery as any).scheduled_at;
                         let displayDateStr = '';
-                        if (delivery.created_at && scheduledTimeStr) {
+                        let displayTimeStr = scheduledTimeStr;
+
+                        if (scheduledTimeStr && scheduledTimeStr.includes('T')) {
+                            const [datePart, timePart] = scheduledTimeStr.split('T');
+                            if (datePart && timePart) {
+                                const dateSubparts = datePart.split('-');
+                                if (dateSubparts.length === 3) {
+                                    const [y, m, dVal] = dateSubparts;
+                                    displayDateStr = `${dVal}/${m}/${y}`;
+                                    displayTimeStr = timePart;
+                                }
+                            }
+                        }
+
+                        if (!displayDateStr && delivery.created_at && scheduledTimeStr) {
                             const parts = scheduledTimeStr.split(':');
                             if (parts.length >= 2) {
                                 const hh = parseInt(parts[0], 10);
@@ -288,13 +302,15 @@ const OrderDetailsModal = ({ delivery, onClose, onShowTracking }: OrderDetailsMo
                                 }
                             }
                         }
+
                         if (!displayDateStr && delivery.created_at) {
                             displayDateStr = format(new Date(delivery.created_at), 'dd/MM/yyyy', { locale: ptBR });
                         }
+
                         return (
                             <div className="flex items-center gap-2 text-purple-400 font-black text-xs uppercase tracking-widest mt-2 bg-purple-500/10 px-4 py-1.5 rounded-full border border-purple-500/20">
                                 <Clock size={12} />
-                                AGENDADO PARA {displayDateStr} ÀS {scheduledTimeStr}
+                                AGENDADO PARA {displayDateStr} ÀS {displayTimeStr}
                             </div>
                         );
                     })() : null}
@@ -524,23 +540,33 @@ const DeliveryManagement = () => {
         let baselineTime = new Date(delivery.created_at).getTime();
         let isScheduledFuture = false;
 
-        if (delivery.status === 'pending' && scheduledAt) {
-            const parts = scheduledAt.split(':');
-            if (parts.length >= 2) {
-                const hh = parseInt(parts[0], 10);
-                const mm = parseInt(parts[1], 10);
-                if (!isNaN(hh) && !isNaN(mm)) {
-                    const scheduledDate = new Date(delivery.created_at);
-                    scheduledDate.setHours(hh, mm, 0, 0);
-                    if (scheduledDate.getTime() < new Date(delivery.created_at).getTime()) {
-                        scheduledDate.setDate(scheduledDate.getDate() + 1);
+        if ((delivery.status === 'pending' || delivery.status === 'scheduled') && scheduledAt) {
+            let scheduledDate: Date | null = null;
+            if (scheduledAt.includes('T')) {
+                const [datePart, timePart] = scheduledAt.split('T');
+                const [y, m, dVal] = datePart.split('-').map(Number);
+                const [hh, mm] = timePart.split(':').map(Number);
+                scheduledDate = new Date(y, m - 1, dVal, hh, mm);
+            } else {
+                const parts = scheduledAt.split(':');
+                if (parts.length >= 2) {
+                    const hh = parseInt(parts[0], 10);
+                    const mm = parseInt(parts[1], 10);
+                    if (!isNaN(hh) && !isNaN(mm)) {
+                        scheduledDate = new Date(delivery.created_at);
+                        scheduledDate.setHours(hh, mm, 0, 0);
+                        if (scheduledDate.getTime() < new Date(delivery.created_at).getTime()) {
+                            scheduledDate.setDate(scheduledDate.getDate() + 1);
+                        }
                     }
-                    
-                    if (scheduledDate.getTime() > now) {
-                        isScheduledFuture = true;
-                    } else {
-                        baselineTime = scheduledDate.getTime();
-                    }
+                }
+            }
+
+            if (scheduledDate) {
+                if (scheduledDate.getTime() > now) {
+                    isScheduledFuture = true;
+                } else {
+                    baselineTime = scheduledDate.getTime();
                 }
             }
         }
@@ -663,9 +689,18 @@ const DeliveryManagement = () => {
 
     const getDeliveryStatusDetails = (delivery: Delivery) => {
         const scheduledAt = delivery.items?.scheduledAt || (delivery as any).scheduled_at;
-        if (delivery.status === 'pending' && scheduledAt) {
+        if ((delivery.status === 'pending' || delivery.status === 'scheduled') && scheduledAt) {
+            let displayStr = scheduledAt;
+            if (scheduledAt.includes('T')) {
+                const [datePart, timePart] = scheduledAt.split('T');
+                const dateSubparts = datePart.split('-');
+                if (dateSubparts.length === 3) {
+                    const [y, m, dVal] = dateSubparts;
+                    displayStr = `${dVal}/${m} ${timePart}`;
+                }
+            }
             return {
-                label: `PROGRAMADO (${scheduledAt})`,
+                label: `PROGRAMADO (${displayStr})`,
                 colorClass: 'bg-purple-500/20 text-purple-400 border-purple-500/30'
             };
         }

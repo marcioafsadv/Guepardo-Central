@@ -24,23 +24,33 @@ const ExceptionsWidget: React.FC<ExceptionsWidgetProps> = ({ drivers, deliveries
         let baselineTime = new Date(d.created_at).getTime();
         let isScheduledFuture = false;
 
-        if (d.status === 'pending' && scheduledAt) {
-            const parts = scheduledAt.split(':');
-            if (parts.length >= 2) {
-                const hh = parseInt(parts[0], 10);
-                const mm = parseInt(parts[1], 10);
-                if (!isNaN(hh) && !isNaN(mm)) {
-                    const scheduledDate = new Date(d.created_at);
-                    scheduledDate.setHours(hh, mm, 0, 0);
-                    if (scheduledDate.getTime() < new Date(d.created_at).getTime()) {
-                        scheduledDate.setDate(scheduledDate.getDate() + 1);
+        if ((d.status === 'pending' || d.status === 'scheduled') && scheduledAt) {
+            let scheduledDate: Date | null = null;
+            if (scheduledAt.includes('T')) {
+                const [datePart, timePart] = scheduledAt.split('T');
+                const [y, m, dVal] = datePart.split('-').map(Number);
+                const [hh, mm] = timePart.split(':').map(Number);
+                scheduledDate = new Date(y, m - 1, dVal, hh, mm);
+            } else {
+                const parts = scheduledAt.split(':');
+                if (parts.length >= 2) {
+                    const hh = parseInt(parts[0], 10);
+                    const mm = parseInt(parts[1], 10);
+                    if (!isNaN(hh) && !isNaN(mm)) {
+                        scheduledDate = new Date(d.created_at);
+                        scheduledDate.setHours(hh, mm, 0, 0);
+                        if (scheduledDate.getTime() < new Date(d.created_at).getTime()) {
+                            scheduledDate.setDate(scheduledDate.getDate() + 1);
+                        }
                     }
-                    
-                    if (scheduledDate.getTime() > now) {
-                        isScheduledFuture = true;
-                    } else {
-                        baselineTime = scheduledDate.getTime();
-                    }
+                }
+            }
+
+            if (scheduledDate) {
+                if (scheduledDate.getTime() > now) {
+                    isScheduledFuture = true;
+                } else {
+                    baselineTime = scheduledDate.getTime();
                 }
             }
         }
@@ -96,21 +106,30 @@ const ExceptionsWidget: React.FC<ExceptionsWidgetProps> = ({ drivers, deliveries
                     const now = new Date().getTime();
                     const scheduledAt = delivery.items?.scheduledAt || (delivery as any).scheduled_at;
                     let baselineTime = new Date(delivery.created_at).getTime();
-                    if (delivery.status === 'pending' && scheduledAt) {
-                        const parts = scheduledAt.split(':');
-                        if (parts.length >= 2) {
-                            const hh = parseInt(parts[0], 10);
-                            const mm = parseInt(parts[1], 10);
-                            if (!isNaN(hh) && !isNaN(mm)) {
-                                const scheduledDate = new Date(delivery.created_at);
-                                scheduledDate.setHours(hh, mm, 0, 0);
-                                if (scheduledDate.getTime() < new Date(delivery.created_at).getTime()) {
-                                    scheduledDate.setDate(scheduledDate.getDate() + 1);
-                                }
-                                if (scheduledDate.getTime() <= now) {
-                                    baselineTime = scheduledDate.getTime();
+                    if ((delivery.status === 'pending' || delivery.status === 'scheduled') && scheduledAt) {
+                        let scheduledDate: Date | null = null;
+                        if (scheduledAt.includes('T')) {
+                            const [datePart, timePart] = scheduledAt.split('T');
+                            const [y, m, dVal] = datePart.split('-').map(Number);
+                            const [hh, mm] = timePart.split(':').map(Number);
+                            scheduledDate = new Date(y, m - 1, dVal, hh, mm);
+                        } else {
+                            const parts = scheduledAt.split(':');
+                            if (parts.length >= 2) {
+                                const hh = parseInt(parts[0], 10);
+                                const mm = parseInt(parts[1], 10);
+                                if (!isNaN(hh) && !isNaN(mm)) {
+                                    scheduledDate = new Date(delivery.created_at);
+                                    scheduledDate.setHours(hh, mm, 0, 0);
+                                    if (scheduledDate.getTime() < new Date(delivery.created_at).getTime()) {
+                                        scheduledDate.setDate(scheduledDate.getDate() + 1);
+                                    }
                                 }
                             }
+                        }
+
+                        if (scheduledDate && scheduledDate.getTime() <= now) {
+                            baselineTime = scheduledDate.getTime();
                         }
                     }
                     const diff = Math.floor((now - baselineTime) / 60000);
