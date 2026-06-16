@@ -468,6 +468,7 @@ const RealTimeMap: React.FC<RealTimeMapProps> = ({ selectedDeliveryId }) => {
                                                delivery.status === 'arrived_at_customer' ? 'No Cliente' :
                                                delivery.status === 'completed' || delivery.status === 'delivered' ? 'Concluído' : 
                                                delivery.status === 'canceled' || delivery.status === 'cancelled' ? 'Cancelado' : 
+                                               delivery.status === 'scheduled' ? 'Programado' :
                                                delivery.status)}
                                     </p>
                                 </div>

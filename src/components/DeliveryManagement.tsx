@@ -634,6 +634,7 @@ const DeliveryManagement = () => {
             case 'completed': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]';
             case 'canceled':
             case 'cancelled': return 'bg-red-500/20 text-red-400 border-red-500/30';
+            case 'scheduled': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
             default: return 'bg-slate-500/20 text-slate-400 border-slate-500/30';
         }
     };
@@ -650,6 +651,7 @@ const DeliveryManagement = () => {
         let label = delivery.status.toUpperCase();
         if (delivery.status === 'created') label = 'RECEBIDO';
         if (delivery.status === 'pending') label = 'PENDENTE';
+        if (delivery.status === 'scheduled') label = 'PROGRAMADO';
         if (delivery.status === 'accepted') label = 'ACEITO';
         if (delivery.status === 'arrived_at_pickup') label = 'NA LOJA';
         if (delivery.status === 'ready_for_pickup') label = 'PEDIDO PRONTO';

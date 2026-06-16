@@ -51,6 +51,7 @@ const getStatusLabel = (status: string): string => {
         case 'arrived_at_delivery': return 'No Destino';
         case 'completed':
         case 'delivered': return 'Concluído';
+        case 'scheduled': return 'Programado';
         default: return status.replace(/_/g, ' ');
     }
 };
@@ -69,6 +70,8 @@ const getStatusBadgeClass = (status: string): string => {
         case 'completed':
         case 'delivered':
             return 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+        case 'scheduled':
+            return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
         default:
             return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
     }
@@ -84,6 +87,7 @@ const getStatusDescription = (status: string): string => {
         case 'in_transit': return 'Em rota de entrega...';
         case 'arrived_at_customer': return 'No local de entrega...';
         case 'arrived_at_delivery': return 'No destino final...';
+        case 'scheduled': return 'Corrida agendada...';
         default: return 'Operando...';
     }
 };
