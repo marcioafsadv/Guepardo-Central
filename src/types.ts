@@ -63,6 +63,7 @@ export interface Profile {
     completed_deliveries_count?: number;
     rating?: number;
     metadata?: Record<string, unknown>;
+    rejection_reason?: string;
     created_at?: string;
     updated_at?: string;
 }

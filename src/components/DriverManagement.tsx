@@ -44,7 +44,7 @@ interface DriverWithDetails extends Profile {
 interface DriverDetailsModalProps {
     driver: DriverWithDetails;
     onClose: () => void;
-    onStatusUpdate: (status: string) => void;
+    onStatusUpdate: (status: string, rejectionReason?: string) => void;
     onRefresh: () => void;
 }
 
@@ -82,6 +82,18 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
     const [isDragging, setIsDragging] = useState(false);
     const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
     const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+    const [showRejectionForm, setShowRejectionForm] = useState(false);
+    const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
+    const [customReason, setCustomReason] = useState('');
+
+    const REJECTION_OPTIONS = [
+        'CNH vencida ou inválida',
+        'CRLV vencido ou não licenciado (2025/2026)',
+        'Foto do veículo irregular ou ausente',
+        'Foto de perfil (Selfie) irregular ou ausente',
+        'Comprovante de residência inválido ou ausente',
+        'Dados bancários incorretos / Chave PIX inválida'
+    ];
     const [docUrls, setDocUrls] = useState({
         cnh_front: driver.vehicles?.cnh_front_url,
         cnh_back: driver.vehicles?.cnh_back_url,
@@ -401,14 +413,77 @@ const DriverDetailsModal = ({ driver, onClose, onStatusUpdate, onRefresh }: Driv
                                 <XCircle className="w-4 h-4" /> BLOQUEAR ACESSO
                             </button>
                         )}
-                        {driver.status !== 'rejected' && (
-                            <button
-                                onClick={() => handleUpdateStatus('rejected')}
-                                disabled={updating}
-                                className="w-full py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl font-black text-orange-500 text-sm transition-all flex items-center justify-center gap-2"
-                            >
-                                <RotateCw className="w-4 h-4" /> SOLICITAR REVISÃO (LIBERAR EDIÇÃO)
-                            </button>
+                        {showRejectionForm ? (
+                            <div className="w-full p-4 bg-black/30 border border-orange-500/20 rounded-2xl text-left space-y-3">
+                                <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Selecione os motivos da rejeição:</p>
+                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                    {REJECTION_OPTIONS.map((opt) => (
+                                        <label key={opt} className="flex items-start gap-2.5 text-xs text-[#A8A29E] font-medium cursor-pointer hover:text-white select-none">
+                                            <input 
+                                                type="checkbox" 
+                                                checked={selectedReasons.includes(opt)}
+                                                onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                        setSelectedReasons(prev => [...prev, opt]);
+                                                    } else {
+                                                        setSelectedReasons(prev => prev.filter(r => r !== opt));
+                                                    }
+                                                }}
+                                                className="mt-0.5 rounded border-white/10 bg-white/5 text-guepardo-orange focus:ring-guepardo-orange focus:ring-offset-0"
+                                            />
+                                            <span>{opt}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                                <div className="space-y-1">
+                                    <label className="text-[9px] font-bold text-[#57534E] uppercase">Outro motivo / Detalhes adicionais</label>
+                                    <textarea
+                                        value={customReason}
+                                        onChange={(e) => setCustomReason(e.target.value)}
+                                        placeholder="Ex: CNH de categoria diferente da permitida..."
+                                        className="w-full h-16 bg-white/5 border border-white/10 rounded-xl p-2.5 text-xs text-white placeholder-white/20 focus:outline-none focus:border-guepardo-orange/50 resize-none"
+                                    />
+                                </div>
+                                <div className="flex gap-2 pt-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowRejectionForm(false)}
+                                        className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg font-bold text-[#A8A29E] text-xs transition-all"
+                                    >
+                                        CANCELAR
+                                    </button>
+                                    <button
+                                        type="button"
+                                        disabled={updating || (selectedReasons.length === 0 && !customReason.trim())}
+                                        onClick={async () => {
+                                            const reasons = [...selectedReasons];
+                                            if (customReason.trim()) {
+                                                reasons.push(customReason.trim());
+                                            }
+                                            const finalReason = reasons.join('; ');
+                                            setUpdating(true);
+                                            await onStatusUpdate('rejected', finalReason);
+                                            setUpdating(false);
+                                            setShowRejectionForm(false);
+                                        }}
+                                        className="flex-1 py-2 bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:hover:bg-orange-500 rounded-lg font-black text-white text-xs transition-all shadow-md"
+                                    >
+                                        CONFIRMAR
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <>
+                                {driver.status !== 'rejected' && (
+                                    <button
+                                        onClick={() => setShowRejectionForm(true)}
+                                        disabled={updating}
+                                        className="w-full py-3 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/30 rounded-xl font-black text-orange-500 text-sm transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <RotateCw className="w-4 h-4" /> SOLICITAR REVISÃO (LIBERAR EDIÇÃO)
+                                    </button>
+                                )}
+                            </>
                         )}
                         {driver.status === 'blocked' && (
                             <button
@@ -856,19 +931,25 @@ const DriverManagement = () => {
         }
     };
 
-    const handleUpdateStatus = async (userId: string, newStatus: string) => {
+    const handleUpdateStatus = async (userId: string, newStatus: string, rejectionReason?: string) => {
         try {
+            const updatePayload: any = { status: newStatus };
+            if (newStatus === 'rejected') {
+                updatePayload.rejection_reason = rejectionReason || null;
+            } else {
+                updatePayload.rejection_reason = null; // Limpa ao aprovar/bloquear
+            }
             const { error } = await supabase
                 .from('profiles')
-                .update({ status: newStatus })
+                .update(updatePayload)
                 .eq('id', userId);
 
             if (error) throw error;
 
             // Update local state if needed, or let realtime handle it
-            setDrivers(prev => prev.map(d => d.id === userId ? { ...d, status: newStatus } : d));
+            setDrivers(prev => prev.map(d => d.id === userId ? { ...d, status: newStatus, rejection_reason: updatePayload.rejection_reason } : d));
             if (selectedDriver?.id === userId) {
-                setSelectedDriver(prev => prev ? { ...prev, status: newStatus } : null);
+                setSelectedDriver(prev => prev ? { ...prev, status: newStatus, rejection_reason: updatePayload.rejection_reason } : null);
             }
         } catch (err) {
             console.error('Error updating status:', err);
@@ -1164,7 +1245,7 @@ const DriverManagement = () => {
                 <DriverDetailsModal
                     driver={selectedDriver}
                     onClose={() => setSelectedDriver(null)}
-                    onStatusUpdate={(newStatus) => handleUpdateStatus(selectedDriver.id, newStatus)}
+                    onStatusUpdate={(newStatus, rejectionReason) => handleUpdateStatus(selectedDriver.id, newStatus, rejectionReason)}
                     onRefresh={fetchDrivers}
                 />
             )}
