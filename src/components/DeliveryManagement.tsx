@@ -270,12 +270,34 @@ const OrderDetailsModal = ({ delivery, onClose, onShowTracking }: OrderDetailsMo
                                        delivery.created_at ? format(new Date(new Date(delivery.created_at).getTime() + 15 * 60000), 'HH:mm') : '10:43'}
                         </div>
                     ) : null}
-                    {delivery.status === 'pending' && (delivery.items?.scheduledAt || (delivery as any).scheduled_at) ? (
-                        <div className="flex items-center gap-2 text-purple-400 font-black text-xs uppercase tracking-widest mt-2 bg-purple-500/10 px-4 py-1.5 rounded-full border border-purple-500/20">
-                            <Clock size={12} />
-                            AGENDADO PARA {delivery.items?.scheduledAt || (delivery as any).scheduled_at}
-                        </div>
-                    ) : null}
+                    {(delivery.status === 'pending' || delivery.status === 'scheduled') && (delivery.items?.scheduledAt || (delivery as any).scheduled_at) ? (() => {
+                        const scheduledTimeStr = delivery.items?.scheduledAt || (delivery as any).scheduled_at;
+                        let displayDateStr = '';
+                        if (delivery.created_at && scheduledTimeStr) {
+                            const parts = scheduledTimeStr.split(':');
+                            if (parts.length >= 2) {
+                                const hh = parseInt(parts[0], 10);
+                                const mm = parseInt(parts[1], 10);
+                                if (!isNaN(hh) && !isNaN(mm)) {
+                                    const scheduledDate = new Date(delivery.created_at);
+                                    scheduledDate.setHours(hh, mm, 0, 0);
+                                    if (scheduledDate.getTime() < new Date(delivery.created_at).getTime()) {
+                                        scheduledDate.setDate(scheduledDate.getDate() + 1);
+                                    }
+                                    displayDateStr = format(scheduledDate, 'dd/MM/yyyy', { locale: ptBR });
+                                }
+                            }
+                        }
+                        if (!displayDateStr && delivery.created_at) {
+                            displayDateStr = format(new Date(delivery.created_at), 'dd/MM/yyyy', { locale: ptBR });
+                        }
+                        return (
+                            <div className="flex items-center gap-2 text-purple-400 font-black text-xs uppercase tracking-widest mt-2 bg-purple-500/10 px-4 py-1.5 rounded-full border border-purple-500/20">
+                                <Clock size={12} />
+                                AGENDADO PARA {displayDateStr} ÀS {scheduledTimeStr}
+                            </div>
+                        );
+                    })() : null}
                 </div>
 
                 {/* Content - Scrollable */}
