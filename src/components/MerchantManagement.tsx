@@ -9,6 +9,8 @@ import {
     FileText,
     Image as ImageIcon,
     Info,
+    Key,
+    Save,
     LayoutGrid,
     List as ListIcon,
     PauseCircle,
@@ -64,10 +66,11 @@ interface MerchantDetailsModalProps {
     onOnboardingUpdate: (status: 'approved' | 'rejected', notes?: string) => Promise<void>;
     onStatusUpdate: (isActive: boolean) => Promise<void>;
     onPauseUpdate: (status: string | undefined) => Promise<void>;
+    onUpdateIntegrations: (ifoodId: string | null, ninenineId: string | null) => Promise<void>;
     onRefresh: () => void;
 }
 
-const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onStatusUpdate, onPauseUpdate, onRefresh }: MerchantDetailsModalProps) => {
+const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onStatusUpdate, onPauseUpdate, onUpdateIntegrations, onRefresh }: MerchantDetailsModalProps) => {
     const [notes, setNotes] = useState(store.onboarding_notes || '');
     const [updating, setUpdating] = useState(false);
     const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
@@ -83,6 +86,23 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
         contract: store.contract_url,
         location_photo: store.location_photo_url,
     });
+
+    const [ifoodMerchantId, setIfoodMerchantId] = useState(store.ifood_merchant_id || '');
+    const [ninenineMerchantId, setNinenineMerchantId] = useState(store.ninenine_merchant_id || '');
+    const [savingIntegrations, setSavingIntegrations] = useState(false);
+
+    const handleSaveIntegrations = async () => {
+        setSavingIntegrations(true);
+        try {
+            await onUpdateIntegrations(ifoodMerchantId || null, ninenineMerchantId || null);
+            alert('Integrações atualizadas com sucesso!');
+        } catch (err: any) {
+            console.error('Error updating integrations:', err);
+            alert(`Erro ao salvar integrações: ${err.message || 'Erro desconhecido'}`);
+        } finally {
+            setSavingIntegrations(false);
+        }
+    };
 
     useEffect(() => {
         setRotation(0);
@@ -353,6 +373,55 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-1">
                                 <p className="text-[10px] font-bold text-[#57534E] uppercase">Nome Fantasia</p>
                                 <p className="text-white font-bold">{store.fantasy_name || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </section>
+
+                    {/* Marketplace Integrations */}
+                    <section className="space-y-6">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-amber-500/10 rounded-xl flex items-center justify-center text-amber-400 border border-amber-500/20 shadow-sm">
+                                    <Key className="w-5 h-5" />
+                                </div>
+                                <h4 className="text-xs font-black text-amber-400/70 uppercase tracking-[0.2em] leading-none">Integração de Marketplaces</h4>
+                            </div>
+                            <button
+                                onClick={handleSaveIntegrations}
+                                disabled={savingIntegrations}
+                                className="px-4 py-2 bg-guepardo-orange hover:bg-guepardo-orange/80 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-widest rounded-xl transition-all flex items-center gap-2 shadow-lg shadow-guepardo-orange/20"
+                            >
+                                {savingIntegrations ? (
+                                    <>
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Salvando...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="w-3.5 h-3.5" /> Salvar Integrações
+                                    </>
+                                )}
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-2">
+                                <label className="text-[10px] font-bold text-[#57534E] uppercase tracking-wider block">iFood Merchant ID</label>
+                                <input
+                                    type="text"
+                                    value={ifoodMerchantId}
+                                    onChange={(e) => setIfoodMerchantId(e.target.value)}
+                                    placeholder="Ex: 5b4ce4be-c8cb-4cee-a0cd-ca6edce71901"
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-guepardo-orange/50 transition-all font-medium placeholder:text-[#57534E]"
+                                />
+                            </div>
+                            <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-2">
+                                <label className="text-[10px] font-bold text-[#57534E] uppercase tracking-wider block">99Food Merchant ID</label>
+                                <input
+                                    type="text"
+                                    value={ninenineMerchantId}
+                                    onChange={(e) => setNinenineMerchantId(e.target.value)}
+                                    placeholder="Ex: 5764654440723385787"
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-guepardo-orange/50 transition-all font-medium placeholder:text-[#57534E]"
+                                />
                             </div>
                         </div>
                     </section>
@@ -977,6 +1046,29 @@ const MerchantManagement = () => {
         }
     };
 
+    const handleUpdateIntegrations = async (storeId: string, ifoodId: string | null, ninenineId: string | null) => {
+        try {
+            const updates = {
+                ifood_merchant_id: ifoodId || null,
+                ninenine_merchant_id: ninenineId || null
+            };
+            const { error } = await supabase
+                .from('stores')
+                .update(updates)
+                .eq('id', storeId);
+
+            if (error) throw error;
+            
+            if (selectedStore?.id === storeId) {
+                setSelectedStore(prev => prev ? { ...prev, ...updates } : null);
+            }
+            fetchData();
+        } catch (err) {
+            console.error('Error updating integrations:', err);
+            throw err;
+        }
+    };
+
     const handleManualAdjustment = async (storeId: string, currentBalance: number) => {
         const amountStr = prompt("Digite o valor para ADICIONAR ao saldo (ex: 50.00):");
         if (!amountStr) return;
@@ -1321,6 +1413,7 @@ const MerchantManagement = () => {
                     onOnboardingUpdate={(status, notes) => handleUpdateOnboarding(selectedStore.id, status, notes)}
                     onStatusUpdate={(isOpen) => toggleIsActive(selectedStore.id, isOpen)}
                     onPauseUpdate={(status) => togglePause(selectedStore.id, status)}
+                    onUpdateIntegrations={(ifoodId, ninenineId) => handleUpdateIntegrations(selectedStore.id, ifoodId, ninenineId)}
                     onRefresh={fetchData}
                 />
             )}
