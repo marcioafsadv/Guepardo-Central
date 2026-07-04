@@ -1048,7 +1048,7 @@ const MerchantManagement = () => {
 
     const handleUpdateIntegrations = async (storeId: string, ifoodId: string | null, ninenineId: string | null) => {
         try {
-            const updates = {
+            const updates: Partial<StoreType> = {
                 ifood_merchant_id: ifoodId || null,
                 ninenine_merchant_id: ninenineId || null
             };

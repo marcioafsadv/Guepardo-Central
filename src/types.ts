@@ -29,8 +29,8 @@ export interface Store {
     location_photo_url?: string;
     onboarding_notes?: string;
     logo_url?: string;
-    ifood_merchant_id?: string;
-    ninenine_merchant_id?: string;
+    ifood_merchant_id?: string | null;
+    ninenine_merchant_id?: string | null;
 }
 
 export interface Profile {
