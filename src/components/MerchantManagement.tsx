@@ -405,13 +405,34 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-2">
                                 <label className="text-[10px] font-bold text-[#57534E] uppercase tracking-wider block">iFood Merchant ID</label>
-                                <input
-                                    type="text"
-                                    value={ifoodMerchantId}
-                                    onChange={(e) => setIfoodMerchantId(e.target.value)}
-                                    placeholder="Ex: 5b4ce4be-c8cb-4cee-a0cd-ca6edce71901"
-                                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-guepardo-orange/50 transition-all font-medium placeholder:text-[#57534E]"
-                                />
+                                <div className="flex flex-col gap-2">
+                                    <input
+                                        type="text"
+                                        value={ifoodMerchantId}
+                                        onChange={(e) => setIfoodMerchantId(e.target.value)}
+                                        placeholder="Ex: 5b4ce4be-c8cb-4cee-a0cd-ca6edce71901"
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-guepardo-orange/50 transition-all font-medium placeholder:text-[#57534E]"
+                                    />
+                                    <div className="flex gap-2">
+                                        <a
+                                            href="https://portal.ifood.com.br/apps/home"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 text-[10px] font-bold text-guepardo-orange hover:text-white hover:bg-guepardo-orange/10 px-3 py-1.5 rounded-xl transition-all border border-guepardo-orange/20"
+                                        >
+                                            <ExternalLink size={12} /> Testar Autorização
+                                        </a>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText("https://portal.ifood.com.br/apps/home");
+                                                alert("Link de autorização do iFood copiado para a área de transferência!");
+                                            }}
+                                            className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#A8A29E] hover:text-white hover:bg-white/5 px-3 py-1.5 rounded-xl transition-all border border-white/10"
+                                        >
+                                            <Copy size={12} /> Copiar Link p/ Cliente
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-2">
                                 <label className="text-[10px] font-bold text-[#57534E] uppercase tracking-wider block">99Food Merchant ID</label>
