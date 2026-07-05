@@ -415,13 +415,34 @@ const MerchantDetailsModal = ({ store, stats, onClose, onOnboardingUpdate, onSta
                             </div>
                             <div className="p-6 bg-white/5 border border-white/10 rounded-3xl space-y-2">
                                 <label className="text-[10px] font-bold text-[#57534E] uppercase tracking-wider block">99Food Merchant ID</label>
-                                <input
-                                    type="text"
-                                    value={ninenineMerchantId}
-                                    onChange={(e) => setNinenineMerchantId(e.target.value)}
-                                    placeholder="Ex: 5764654440723385787"
-                                    className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-guepardo-orange/50 transition-all font-medium placeholder:text-[#57534E]"
-                                />
+                                <div className="flex flex-col gap-2">
+                                    <input
+                                        type="text"
+                                        value={ninenineMerchantId}
+                                        onChange={(e) => setNinenineMerchantId(e.target.value)}
+                                        placeholder="Ex: 5764654440723385787"
+                                        className="w-full bg-black/40 border border-white/10 rounded-2xl p-3 text-sm text-white focus:outline-none focus:border-guepardo-orange/50 transition-all font-medium placeholder:text-[#57534E]"
+                                    />
+                                    <div className="flex gap-2">
+                                        <a
+                                            href="https://merchant.99app.com/pt-BR/manager/app-authorize?app_id=5764607608634214376"
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex items-center gap-1.5 text-[10px] font-bold text-guepardo-orange hover:text-white hover:bg-guepardo-orange/10 px-3 py-1.5 rounded-xl transition-all border border-guepardo-orange/20"
+                                        >
+                                            <ExternalLink size={12} /> Testar Autorização
+                                        </a>
+                                        <button
+                                            onClick={() => {
+                                                navigator.clipboard.writeText("https://merchant.99app.com/pt-BR/manager/app-authorize?app_id=5764607608634214376");
+                                                alert("Link de autorização copiado para a área de transferência!");
+                                            }}
+                                            className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[#A8A29E] hover:text-white hover:bg-white/5 px-3 py-1.5 rounded-xl transition-all border border-white/10"
+                                        >
+                                            <Copy size={12} /> Copiar Link p/ Cliente
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </section>
