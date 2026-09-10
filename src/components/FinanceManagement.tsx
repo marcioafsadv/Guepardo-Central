@@ -26,7 +26,8 @@ import {
     Info,
     ArrowDownLeft,
     AlertTriangle,
-    Copy
+    Copy,
+    Zap
 } from 'lucide-react';
 import {
     AreaChart,
@@ -61,6 +62,7 @@ const FinanceManagement = () => {
     const [activeTab, setActiveTab] = useState<'history' | 'payouts' | 'recharges'>('history');
     const [payouts, setPayouts] = useState<any[]>([]);
     const [rechargeRequests, setRechargeRequests] = useState<any[]>([]);
+    const [rechargeFilter, setRechargeFilter] = useState<'ALL' | 'PENDING' | 'CONFIRMED'>('ALL');
     const [isProcessing, setIsProcessing] = useState<string | null>(null);
     const [manualPayoutData, setManualPayoutData] = useState<any>(null);
 
@@ -433,9 +435,9 @@ const FinanceManagement = () => {
                 >
                     <ArrowDownLeft size={16} />
                     Solicitações de Recarga
-                    {rechargeRequests.length > 0 && (
+                    {rechargeRequests.filter((r: any) => r.status === 'PENDING').length > 0 && (
                         <span className="bg-fluorescent-orange text-black px-2 py-0.5 rounded-full text-[10px] animate-pulse">
-                            {rechargeRequests.length}
+                            {rechargeRequests.filter((r: any) => r.status === 'PENDING').length}
                         </span>
                     )}
                 </button>
@@ -1042,13 +1044,33 @@ const FinanceManagement = () => {
 
             {activeTab === 'recharges' && (
                 <div className="bg-white/5 border border-white/10 rounded-[2.5rem] p-8 shadow-2xl backdrop-blur-md relative overflow-hidden animate-in slide-in-from-right duration-500">
-                    <div className="flex items-center justify-between mb-8">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
                         <div className="flex flex-col gap-1">
                             <h3 className="text-xl font-black text-white flex items-center gap-3 uppercase italic">
                                 <ArrowDownLeft className="text-[#FF6B00] w-6 h-6 shadow-glow-orange" />
-                                <span>Solicitações de Recarga Manual</span>
+                                <span>Solicitações de Recarga</span>
                             </h3>
-                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Valide as transferências recebidas e libere o saldo</p>
+                            <p className="text-[10px] text-[#A8A29E] font-bold uppercase tracking-widest">Acompanhe as recargas automáticas e valide as transferências manuais</p>
+                        </div>
+                        <div className="flex items-center gap-2 bg-white/5 p-1 rounded-2xl border border-white/10">
+                            <button
+                                onClick={() => setRechargeFilter('ALL')}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${rechargeFilter === 'ALL' ? 'bg-[#FF6B00] text-white shadow-glow-orange' : 'text-[#A8A29E] hover:text-white'}`}
+                            >
+                                Todas ({rechargeRequests.length})
+                            </button>
+                            <button
+                                onClick={() => setRechargeFilter('PENDING')}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 ${rechargeFilter === 'PENDING' ? 'bg-[#FF6B00] text-white shadow-glow-orange' : 'text-[#A8A29E] hover:text-white'}`}
+                            >
+                                Pendentes ({rechargeRequests.filter((r: any) => r.status === 'PENDING').length})
+                            </button>
+                            <button
+                                onClick={() => setRechargeFilter('CONFIRMED')}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all ${rechargeFilter === 'CONFIRMED' ? 'bg-[#FF6B00] text-white shadow-glow-orange' : 'text-[#A8A29E] hover:text-white'}`}
+                            >
+                                Confirmadas ({rechargeRequests.filter((r: any) => r.status === 'CONFIRMED').length})
+                            </button>
                         </div>
                     </div>
 
@@ -1064,15 +1086,36 @@ const FinanceManagement = () => {
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-white/5">
-                                {rechargeRequests.length > 0 ? (
-                                    rechargeRequests.map((r: any) => (
+                                {rechargeRequests.filter((r: any) => {
+                                    if (rechargeFilter === 'PENDING') return r.status === 'PENDING';
+                                    if (rechargeFilter === 'CONFIRMED') return r.status === 'CONFIRMED';
+                                    return true;
+                                }).length > 0 ? (
+                                    rechargeRequests.filter((r: any) => {
+                                        if (rechargeFilter === 'PENDING') return r.status === 'PENDING';
+                                        if (rechargeFilter === 'CONFIRMED') return r.status === 'CONFIRMED';
+                                        return true;
+                                    }).map((r: any) => (
                                         <tr key={r.id} className="hover:bg-white/5 transition-colors group">
                                             <td className="px-8 py-5">
                                                 <div className="flex items-center gap-3">
                                                     <div className="p-2 bg-amber-500/10 text-amber-500 rounded-xl border border-amber-500/20">
                                                         <Store size={18} />
                                                     </div>
-                                                    <span className="text-sm font-black text-white italic uppercase">{r.stores?.fantasy_name || r.stores?.company_name}</span>
+                                                    <div className="flex flex-col">
+                                                        <span className="text-sm font-black text-white italic uppercase">{r.stores?.fantasy_name || r.stores?.company_name}</span>
+                                                        <div className="flex items-center gap-2 mt-1">
+                                                            {r.external_id ? (
+                                                                <span className="text-[9px] font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 flex items-center gap-1 w-fit">
+                                                                    <Zap size={10} /> Pix Automático (Asaas)
+                                                                </span>
+                                                            ) : (
+                                                                <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 w-fit">
+                                                                    Transferência Manual
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             </td>
                                             <td className="px-8 py-5">

@@ -148,7 +148,7 @@ serve(async (req) => {
       amount: baseAmount,
       type: 'RECHARGE',
       status: 'PENDING',
-      payment_method: billingType === 'MANUAL' ? 'PIX' : billingType, 
+      payment_method: billingType === 'MANUAL' ? 'MANUAL' : billingType, 
       description: description || 'Recarga de Saldo - Guepardo'
     }
 
