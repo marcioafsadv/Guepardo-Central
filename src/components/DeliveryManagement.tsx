@@ -412,6 +412,47 @@ const OrderDetailsModal = ({ delivery, onClose, onShowTracking }: OrderDetailsMo
                         </div>
                     </div>
 
+                    {/* Dossiê de Ausência do Cliente / Devolução */}
+                    {delivery.items?.customer_missing && (
+                        <div className="bg-gradient-to-br from-red-950/40 via-[#232629] to-black border-2 border-red-500/30 rounded-3xl p-6 flex flex-col gap-3 shadow-[0_0_30px_rgba(239,68,68,0.15)]">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2 text-red-400">
+                                    <AlertTriangle className="w-5 h-5 animate-pulse" />
+                                    <span className="text-xs font-black uppercase tracking-wider">Protocolo de Cliente Ausente</span>
+                                </div>
+                                <span className={`px-2.5 py-1 rounded-full text-[9px] font-black uppercase tracking-widest ${
+                                    delivery.items?.customer_missing_action === 'store_return' 
+                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+                                        : 'bg-red-500/20 text-red-300 border border-red-500/40'
+                                }`}>
+                                    {delivery.items?.customer_missing_action === 'store_return' ? 'Devolução Solicitada' : 'Descarte Autorizado'}
+                                </span>
+                            </div>
+
+                            <div className="space-y-1.5 text-xs text-stone-300">
+                                <p>⏱️ <strong>Espera no local:</strong> Entregador aguardou mais de 5 minutos na portaria sem retorno do morador.</p>
+                                {delivery.items?.waitingStartedAt && (
+                                    <p className="text-[11px] text-stone-400">
+                                        Início da contagem: {new Date(delivery.items.waitingStartedAt).toLocaleTimeString('pt-BR')}
+                                    </p>
+                                )}
+                                {delivery.items?.missing_reported_at && (
+                                    <p className="text-[11px] text-stone-400">
+                                        Acionamento da loja: {new Date(delivery.items.missing_reported_at).toLocaleTimeString('pt-BR')}
+                                    </p>
+                                )}
+                                <div className="pt-2 border-t border-white/10 flex justify-between items-center text-xs">
+                                    <span className="text-[#A8A29E] font-bold">Resolução pelo Lojista:</span>
+                                    <span className="font-black text-white">
+                                        {delivery.items?.customer_missing_action === 'store_return' 
+                                            ? 'Retorno ao Restaurante (+ Taxa Devolução)' 
+                                            : 'Descarte / Pedido Encerrado'}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Order Number Card */}
                     <div className="bg-transparent border-2 border-guepardo-orange/20 rounded-3xl p-8 flex flex-col items-center justify-center gap-1 shadow-[inset_0_0_40px_rgba(255,107,0,0.05)]">
                         <span className="text-[10px] font-black text-guepardo-orange uppercase tracking-[0.4em]">Número do Pedido</span>
@@ -678,6 +719,8 @@ const DeliveryManagement = () => {
             case 'picked_up': return 'bg-indigo-500/20 text-indigo-400 border-indigo-500/30';
             case 'in_transit': return 'bg-purple-500/20 text-purple-400 border-purple-500/30';
             case 'arrived_at_customer': return 'bg-teal-500/20 text-teal-400 border-teal-500/30';
+            case 'returning':
+            case 'returned': return 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]';
             case 'delivered':
             case 'completed': return 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]';
             case 'canceled':
@@ -688,6 +731,28 @@ const DeliveryManagement = () => {
     };
 
     const getDeliveryStatusDetails = (delivery: Delivery) => {
+        // Caso especial: Cliente Ausente / Devolução
+        if (delivery.items?.customer_missing === true) {
+            const action = delivery.items?.customer_missing_action;
+            const waitingStatus = delivery.items?.waiting_status;
+            if (action === 'store_return' || waitingStatus === 'store_requested_return' || delivery.status === 'returning' || delivery.status === 'returned' || delivery.status === 'closed') {
+                return {
+                    label: 'DEVOLVIDO À LOJA',
+                    colorClass: 'bg-amber-500/20 text-amber-300 border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                };
+            }
+            if (action === 'discard_delivered' || delivery.items?.discard_approved === true || waitingStatus === 'discard_approved') {
+                return {
+                    label: 'NÃO ENTREGUE (CLIENTE AUSENTE)',
+                    colorClass: 'bg-red-500/20 text-red-400 border-red-500/40 shadow-[0_0_15px_rgba(239,68,68,0.2)]'
+                };
+            }
+            return {
+                label: 'CLIENTE AUSENTE (AGUARDANDO)',
+                colorClass: 'bg-red-600/20 text-red-300 border-red-500/50 animate-pulse'
+            };
+        }
+
         const scheduledAt = delivery.items?.scheduledAt || (delivery as any).scheduled_at;
         if ((delivery.status === 'pending' || delivery.status === 'scheduled') && scheduledAt) {
             let displayStr = scheduledAt;
@@ -738,11 +803,12 @@ const DeliveryManagement = () => {
             origin.includes(searchTerm.toLowerCase());
 
         const matchesStatus = statusFilter === 'all' ||
-            (statusFilter === 'delivered' ? (d.status === 'delivered' || d.status === 'completed') :
-                statusFilter === 'canceled' ? (d.status === 'canceled' || d.status === 'cancelled') :
-                statusFilter === 'scheduled' ? (d.status === 'pending' && (d.items?.scheduledAt || (d as any).scheduled_at)) :
-                statusFilter === 'pending' ? (d.status === 'pending' && !(d.items?.scheduledAt || (d as any).scheduled_at)) :
-                    d.status === statusFilter);
+            (statusFilter === 'missing_customer' ? (d.items?.customer_missing === true) :
+             statusFilter === 'delivered' ? (d.status === 'delivered' || d.status === 'completed') :
+             statusFilter === 'canceled' ? (d.status === 'canceled' || d.status === 'cancelled') :
+             statusFilter === 'scheduled' ? (d.status === 'pending' && (d.items?.scheduledAt || (d as any).scheduled_at)) :
+             statusFilter === 'pending' ? (d.status === 'pending' && !(d.items?.scheduledAt || (d as any).scheduled_at)) :
+             d.status === statusFilter);
 
         const matchesStore = storeFilter === 'all' || d.store_name === storeFilter;
 
@@ -756,7 +822,7 @@ const DeliveryManagement = () => {
     const handleExportExcel = () => {
         const data = filteredDeliveries.map(d => ({
             'ID Pedido': d.items?.displayId || d.id.slice(-6).toUpperCase(),
-            'Status': d.status,
+            'Status': getDeliveryStatusDetails(d).label,
             'Data': d.created_at ? format(new Date(d.created_at), "dd/MM/yyyy HH:mm") : '',
             'Cliente': d.customer_name || 'Desconhecido',
             'Endereço': d.customer_address || 'Não informado',
@@ -777,7 +843,7 @@ const DeliveryManagement = () => {
             const head = [['ID', 'Status', 'Data', 'Cliente', 'Lojista', 'Valor']];
             const body = filteredDeliveries.map(d => [
                 d.items?.displayId || d.id.slice(-6).toUpperCase(),
-                d.status,
+                getDeliveryStatusDetails(d).label,
                 d.created_at ? format(new Date(d.created_at), "dd/MM/yyyy HH:mm") : '',
                 d.customer_name || 'Desconhecido',
                 d.store_name,
@@ -863,6 +929,7 @@ const DeliveryManagement = () => {
                         <option value="accepted">Aceitos</option>
                         <option value="in_transit">Em Rota</option>
                         <option value="delivered">Concluídos</option>
+                        <option value="missing_customer">🚨 Cliente Ausente / Devoluções</option>
                         <option value="canceled">Cancelados</option>
                     </select>
 
